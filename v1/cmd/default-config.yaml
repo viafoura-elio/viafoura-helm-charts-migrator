@@ -1,0 +1,528 @@
+# Global patterns that apply to all services
+globals:
+  # Converter configuration for camelCase conversion
+  converter:
+    skipJavaProperties: true      # Skip converting Java property style keys (e.g., root.properties)
+    skipUppercaseKeys: true        # Skip converting keys that are mostly uppercase
+    minUppercaseChars: 3           # Minimum consecutive uppercase chars to skip conversion
+
+  # Performance configuration
+  performance:
+    maxConcurrentServices: 5      # Process up to 5 services in parallel
+    showProgress: true             # Show progress during migration
+
+  # SOPS encryption/decryption configuration
+  sops:
+    enabled: true                  # Enable SOPS operations
+    awsProfile: "cicd-sre"        # AWS profile for KMS operations
+    parallelWorkers: 5            # Number of parallel workers for encryption/decryption
+    configFile: ".sops.yaml"      # SOPS configuration file path
+    pathRegex: '(.*)/(.*).dec.(json|yml|yaml)$'  # Default path regex for files to encrypt
+    skipUnchanged: false          # Skip encryption if encrypted file is newer than decrypted
+    timeout: 30                   # Timeout in seconds for each encryption operation
+
+  # Auto Inject Key Values Pairs
+  autoInject:
+    "values.yaml":
+      keys:
+        - key: 'secrets."root.properties"."9487e74c-2d27-4085-b637-30a82239b0b2"'
+          value: misconfigured
+          condition: disabled # ifExists, ifNotExists, always, disabled
+          description: "Set Default Secret Value for 9487e74c-2d27-4085-b637-30a82239b0b2"
+    "envs/dev01/*/values.yaml":
+      keys:
+        - key: 'configMap."root.properties"."auth.dataSource.user"'
+          value: "{environment}-auth"
+          condition: disabled # ifExists, ifNotExists, always, disabled
+          description: "Set environment-specific auth datasource user"
+
+  # Hierarchical mapping for accurate secrets extraction
+  mappings:
+    locations:
+      scan_mode: filtered
+      include: [ "configMap" ]
+
+    normalizer:
+      enabled: true
+      description: "Global Normalizations Configuration"
+      patterns:
+        '(^|\.)[Rr]eplicas$': 'replicaCount'
+        '[Aa]utoscaling.[Tt]arget.[Cc]pu': 'autoscaling.targetCPUUtilizationPercentage'
+        '[Aa]utoscaling.[Tt]arget.[Mm]emory': 'autoscaling.targetMemoryUtilizationPercentage'
+        '[Cc]ontainer.[Pp]ort': 'service.targetPort'
+        '^[Dd]eployment.maxSurge$': 'strategy.rollingUpdate.maxSurge'
+        '^[Dd]eployment.maxUnavailable$': 'strategy.rollingUpdate.maxUnavailable'
+        '^[Dd]eployment.iamRole$': 'serviceAccount.iamRole.name'
+        '^[Ee]nv$': 'envVars'
+    transform:
+      enabled: true
+      description: "Global Transformations Configuration"
+      rules:
+        ingress_to_hosts:
+          type: "ingress_to_hosts"
+          source_path: "[Ii]ngress"
+          target_path: "hosts.public.domains"
+          description: "Extract valid hosts from ingress configurations and collect them into hosts.public.domains list"
+    extract:
+      enabled: true
+      description: "Global Extractions Configuration"
+      patterns: {}
+
+      # Legacy service_ports configuration (will be deprecated)
+      service_ports:
+        enabled: true
+        description: "Extract Service port configuration from Kubernetes Service spec in manifest.yaml"
+        prefer_service_spec: true  # If true, Service spec values override container port values
+
+      # New abstract manifest extraction rules
+      manifest_resources:
+        enabled: true
+        description: "Extract configuration from any Kubernetes resource in manifest.yaml"
+
+        # Save a consolidated extraction file in cache
+        consolidated_output:
+          enabled: true
+          filename: "extracted-manifest-data.yaml"
+
+        # Define extraction rules for different Kubernetes kinds
+        rules:
+          # Deployment extraction rule
+          - kind: Deployment
+            enabled: true
+            description: "Extract Deployment configurations"
+            extractions:
+              - source: "spec.template.spec.securityContext.sysctls"
+                target: "podSecurityContext.sysctls"
+                description: "Pod Security Context Sys CTLs"
+          # Service extraction rule
+          - kind: Service
+            enabled: true
+            description: "Extract Service port configuration"
+            extractions:
+              - source: "spec.ports[0].port"
+                target: "service.port"
+                description: "Main service port"
+              - source: "spec.ports[0].targetPort"
+                target: "service.targetPort"
+                description: "Container target port"
+              - source: "spec.ports[0].protocol"
+                target: "service.protocol"
+                description: "Port protocol (TCP/UDP)"
+              - source: "spec.ports[0].name"
+                target: "service.portName"
+                description: "Port name"
+              - source: "spec.type"
+                target: "service.type"
+                description: "Service type (ClusterIP, NodePort, LoadBalancer)"
+
+          # ConfigMap extraction rule
+          - kind: ConfigMap
+            enabled: false
+            description: "Extract ConfigMap data"
+            extractions:
+              - source: "data"
+                target: "configMap"
+                description: "ConfigMap data"
+                merge: true  # Merge with existing configMap values
+
+          # Ingress extraction rule
+          - kind: Ingress
+            enabled: false
+            description: "Extract Ingress configuration"
+            extractions:
+              - source: "spec.rules[*].host"
+                target: "hosts.public.domains"
+                description: "Extract all ingress hosts"
+                type: "array_collect"  # Collect all matching values into array
+              - source: "spec.tls[*].hosts"
+                target: "hosts.tls.domains"
+                description: "Extract TLS hosts"
+                type: "array_flatten"  # Flatten nested arrays
+              - source: "metadata.annotations"
+                target: "ingress.annotations"
+                description: "Ingress annotations"
+                filter: "nginx.*"  # Only extract nginx annotations
+
+          # Secret extraction rule (for metadata only, not actual secrets)
+          - kind: Secret
+            enabled: false
+            description: "Extract Secret metadata"
+            extractions:
+              - source: "metadata.name"
+                target: "secrets.references[]"
+                description: "Track secret references"
+                type: "array_append"
+              - source: "type"
+                target: "secrets.types.{metadata.name}"
+                description: "Secret type by name"
+
+          # PodDisruptionBudget extraction
+          - kind: PodDisruptionBudget
+            enabled: true
+            description: "Extract PDB configuration"
+            extractions:
+              - source: "spec.minAvailable"
+                target: "podDisruptionBudget.minAvailable"
+              - source: "spec.maxUnavailable"
+                target: "podDisruptionBudget.maxUnavailable"
+
+          # ServiceAccount extraction
+          - kind: ServiceAccount
+            enabled: false
+            description: "Extract ServiceAccount configuration"
+            extractions:
+              - source: "metadata.name"
+                target: "serviceAccount.name"
+              - source: "metadata.annotations.'eks.amazonaws.com/role-arn'"
+                target: "serviceAccount.iamRole"
+                description: "AWS IAM role for service account"
+    cleaner:
+      enabled: true
+      description: "Global Cleaner Configuration - Removes unwanted root-level keys from values files"
+      # Path patterns to match files where cleaning should be applied
+      # Supports glob patterns like **/* and {cluster}/{namespace} placeholders
+      path_patterns:
+        - "apps/**/legacy-values.yaml"
+        - "apps/**/helm-values.yaml"
+        - "apps/**/envs/.*/.*/.*/values.yaml"
+      # Key patterns to identify root-level keys that should be removed
+      # Only removes keys at the root level, nested keys with the same name are preserved
+      key_patterns:
+        - "^[Cc]anary$"
+        - "^[Cc]ontainer$"
+        - "^[Pp]odLabels$"
+        - "^[Pp]odAnnotations$"
+        - "^[Nn]ameOverride$"
+        - "^[Ff]ullnameOverride$"
+
+  # Hierarchical secrets mapping for accurate secrets extraction
+  # Global patterns that apply to all services
+  secrets:
+    # Location configuration for targeted secret scanning
+    locations:
+      # Base path where secrets are typically located (defaults to "secrets")
+      base_path: "configMap" # Required
+
+      # The new destination of extracted secrets
+      store_path: "secrets" # Required
+
+      # Additional specific paths where secrets might be found
+      additional_paths: [] # Optional
+        # - "auth"
+        # - "database"
+        # - "configMap.data"
+      # - "app.secrets"
+
+      # Path patterns for flexible secret detection
+      path_patterns: [] # Optional
+        # - ".*\\.auth\\..*"
+        # - ".*\\.credentials\\..*"
+      # - ".*\\.env\\..*"
+
+      # Scan mode: filtered focuses on secrets section + additional paths
+      scan_mode: filtered
+
+    # Merging Strategy
+    merging: {}
+    #  # Target Pattern file
+    #  "apps/{service}/values.yaml":
+    #    # Custom key mappings for livecomments
+    #    # Maps configMap keys to different secret keys
+    #    keyMappings:
+    #      'configMap."application.properties"': 'secrets."application.conf"'
+    #    # Define the merge order for secrets
+    #    # Files are processed in order, later files override earlier ones
+    #    mergeOrder:
+    #      - "apps/{service}/legacy-values.yaml"
+    #      - "apps/{service}/helm-values.yaml"
+
+    # Common secret patterns across all services
+    patterns:
+      - ".*\\.password.*"
+      - ".*\\.secret.*"
+      - ".*jwt\\.secret.*"
+      - ".*\\.key$"
+      - ".*\\.token.*"
+      # Removed overly broad auth pattern - replaced with specific ones below
+      - ".*client_secret.*"
+      - ".*api_key.*"
+      - ".*private_key.*"
+      - ".*signing_key.*"
+      - ".*encryption_key.*"
+      # More specific auth patterns to avoid false positives
+      - ".*\\.auth\\.key.*"
+      - ".*\\.auth\\.token.*"
+      - ".*\\.auth\\.secret.*"
+
+    # Global UUID patterns for client IDs and API keys
+    uuids:
+      - pattern: ".*client.*uuid.*"
+        sensitive: true
+        description: "Client UUIDs are typically sensitive identifiers"
+      - pattern: "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+        sensitive: true
+        description: "Generic UUID pattern - evaluate based on context"
+
+    # Common sensitive values regardless of key name
+    values:
+      # Base64 encoded secrets (more restrictive to avoid file paths)
+      - pattern: "^[A-Za-z0-9+/]{40,}={0,2}$"
+        sensitive: true
+        description: "Base64 encoded values are likely secrets (40+ chars, no slashes at start)"
+      # JWT tokens (start with eyJ)
+      - pattern: "^eyJ[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+$"
+        sensitive: true
+        description: "JWT-like tokens"
+      - pattern: "^[A-Fa-f0-9]{32,}$"  # Hex encoded secrets
+        sensitive: true
+        description: "Long hex strings are likely secrets"
+
+  # Migration Configuration
+  migration:
+    baseValuesPath: "**/values.yaml"
+    envValuesPattern: "**/envs/{cluster}/{namespace}/values.yaml"
+    helmValuesFilename: "values.yaml"
+    legacyValuesFilename: "legacy-values.yaml"
+
+# Clusters Configuration
+clusters:
+  # Production Cluster Configuration
+  prod01:
+    default: true
+    default_namespace: viafoura
+    enabled: true
+    target: prod01
+    source: k8s1.cc
+    aws_profile: production-sre
+    aws_region: us-east-1
+    environments:
+      production:
+        enabled: true
+        namespaces:
+          viafoura:
+            enabled: true
+            name: viafoura
+
+  # Development Cluster Configuration
+  dev01:
+    default: false
+    default_namespace: vf-dev2
+    enabled: true
+    target: dev01
+    source: k8s1.xyz
+    aws_profile: test-sre
+    aws_region: us-east-1
+    environments:
+      development:
+        enabled: true
+        namespaces:
+          vf-dev2:
+            enabled: true
+            name: vf-dev2
+          vf-dev3:
+            enabled: true
+            name: vf-dev3
+          vf-dev4:
+            enabled: true
+            name: vf-dev4
+          vf-dev5:
+            enabled: true
+            name: vf-dev5
+      test:
+        enabled: true
+        namespaces:
+          vf-test2:
+            enabled: true
+            name: vf-test2
+          vf-test3:
+            enabled: true
+            name: vf-test3
+          vf-test4:
+            enabled: true
+            name: vf-test4
+
+# Services to Migrate
+services:
+  auth-service:
+    enabled: true
+    alias: auth
+    name: auth-service
+    secrets:
+      keys:
+        - "auth.client_secret"
+        - "database.password"
+        - "jwt.signing.key"
+      patterns:
+        - ".*client_secret.*"
+        - ".*database.*password.*"
+        - ".*jwt.*key.*"
+      description: "Auth service authentication secrets"
+  auth0-oidc-demo:
+    enabled: true
+    alias: auth0
+    name: auth0-oidc-demo
+  comment-import:
+    enabled: true
+    alias: comimp
+    name: comment-import
+  console:
+    enabled: true
+    alias: console
+    name: console
+  console-moderation:
+    enabled: true
+    alias: cm
+    name: console-moderation
+  data-burrito:
+    enabled: true
+    alias: databur
+    name: data-burrito
+  email:
+    enabled: true
+    alias: email
+    name: email
+  flume:
+    enabled: true
+    alias: flume
+    name: flume
+  gdpr-mediation:
+    enabled: true
+    alias: gdprmed
+    name: gdpr-mediation
+  heimdall:
+    enabled: true
+    alias: heimdall
+    name: heimdall
+    capitalized: Heimdall
+    autoInject:
+      "values.yaml":
+        keys:
+          - key: 'secrets."root.properties"."9487e74c-2d27-4085-b637-30a82239b0b2"'
+            value: misconfigured
+            condition: ifExists # ifExists, ifNotExists, always, disabled
+            description: "Set Default Secret Value for 9487e74c-2d27-4085-b637-30a82239b0b2"
+      "envs/dev01/*/values.yaml":
+        keys:
+          - key: 'configMap."root.properties"."auth.dataSource.user"'
+            value: "{environment}-auth"
+            condition: ifExists # ifExists, ifNotExists, always, disabled
+            description: "Set environment-specific auth datasource user"
+    mappings: {}
+    migration: {}
+    secrets:
+      # These specific UUIDs are client secrets for heimdall
+      keys:
+        - "3f4beddd-2061-49b0-ae80-6f1f2ed65b37"
+        - "682843b1-d3e0-460e-ab90-6556bc31470f"
+        - "936da557-6daa-4444-92cc-161fc290c603"
+        - "9487e74c-2d27-4085-b637-30a82239b0b2"
+        - "c23203d0-1b8e-4208-92dc-85dc79e6226b"
+      patterns:
+        - ".*access.refresh.local_client_uuid.*"
+        - ".*loginradius.*secret.*"
+        - ".*oauth.*secret.*"
+        - ".*provider.*secret.*"
+        - ".*thirdparty.*apikey.*"
+        - ".*thirdparty.parameter.loginradius.*"
+      description: "Heimdall authentication service secrets"
+  ingestor:
+    enabled: true
+    alias: ingestor
+    name: ingestor
+  legacy-gdpr-connector:
+    enabled: true
+    alias: lgdprc
+    name: legacy-gdpr-connector
+  livechat:
+    enabled: true
+    alias: lv
+    name: livechat
+    secrets:
+      keys:
+        - "auth.client_secret"
+        - "livechat.service.jwt.secret1"
+        - "livechat.service.jwt.secret2"
+        - "livechat.service.mysql.password"
+        - "livechat.service.mysql.ro.password"
+      patterns:
+        - ".*mysql.*password.*"
+        - ".*jwt.*secret.*"
+      description: "Livechat service database and JWT secrets"
+  livecomments:
+    enabled: true
+    alias: lc
+    name: livecomments
+    capitalized: Live Comments
+    secrets:
+      locations:
+        exclude:
+          - "auth.client_uuid"
+      # Merging Strategy
+      merging:
+        # Target Pattern file
+        "apps/{service}/values.yaml":
+          # Custom key mappings for livecomments
+          # Maps configMap keys to different secret keys
+          keyMappings:
+            "configMap.application.properties": "secrets.application.conf"
+          # Define the merge order for secrets
+          # Files are processed in order, later files override earlier ones
+          mergeOrder:
+            - "apps/{service}/legacy-values.yaml"
+            - "apps/{service}/helm-values.yaml"
+  livequestions:
+    enabled: true
+    alias: lq
+    name: livequestions
+  livereviews:
+    enabled: true
+    alias: lr
+    name: livereviews
+  livestories:
+    enabled: true
+    alias: ls
+    name: livestories
+  moderation-orchestrator:
+    enabled: true
+    alias: mo
+    name: moderation-orchestrator
+  polls:
+    enabled: true
+    alias: polls
+    name: polls
+  realtime-event-feed:
+    enabled: true
+    alias: ref
+    name: realtime-event-feed
+  spam-moderation:
+    enabled: true
+    alias: sm
+    name: spam-moderation
+  tyrion:
+    enabled: true
+    alias: tyrion
+    name: tyrion
+  ucs-moderation:
+    enabled: true
+    alias: uscm
+    name: ucs-moderation
+  user-import:
+    enabled: true
+    alias: ui
+    name: user-import
+  user-interaction:
+    enabled: true
+    alias:
+    name: user-interaction
+  user-notification:
+    enabled: true
+    alias: usn
+    name: user-notification
+  webhooks:
+    enabled: true
+    alias: webhooks
+    name: webhooks
+  webhooks-client:
+    enabled: true
+    alias: webhookscli
+    name: webhooks-client

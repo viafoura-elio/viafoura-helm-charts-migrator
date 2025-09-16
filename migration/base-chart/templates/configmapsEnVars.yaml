@@ -1,0 +1,14 @@
+{{- if .Values.configMapEnvVars }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "base-chart.fullname" . }}-configMapEnvVars
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+    checksum/configMapEnvVars: {{ toYaml .Values.configMapEnvVars | sha256sum | trunc 63 }}
+data:
+{{- with .Values.configMapEnvVars }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}

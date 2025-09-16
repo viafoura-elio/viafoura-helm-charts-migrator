@@ -1,0 +1,9 @@
+---
+creation_rules:
+  - path_regex: '(.*)/(.*).dec.(json|yml|yaml)$'
+    unencrypted_comment_regex: '^(#\s+.*)$'
+    shamir_threshold: 2
+    key_groups:
+      - kms:
+          - arn: arn:aws:kms:us-east-1:557206274117:key/c1d54070-18eb-42ed-b41e-0adff389361c
+          - arn: arn:aws:kms:us-east-1:557206274117:key/e9c0ff8f-3b36-46d0-84ae-321ca45b6b48

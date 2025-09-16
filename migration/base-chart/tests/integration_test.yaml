@@ -1,0 +1,93 @@
+suite: Integration Tests - End-to-End Validation
+templates:
+  - rollout.yaml
+  - service.yaml
+  - hpa.yaml
+  - istio-destinationrule.yaml
+  - istio-virtualservice.yaml
+  - servicemonitor.yaml
+  - istio-gateway.yaml
+values:
+  - ../envs/dev01/vf-dev2/values.yaml
+tests:
+  - it: should configure Argo Rollout with canary strategy
+    template: rollout.yaml
+    asserts:
+      - isKind:
+          of: Rollout
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-base-chart
+      - isNotEmpty:
+          path: spec.strategy.canary
+
+  - it: should configure service with metrics port
+    template: service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - contains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 5555
+            protocol: TCP
+            targetPort: 5555
+
+  - it: should configure HPA with correct replicas for dev01
+    template: hpa.yaml
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - equal:
+          path: spec.minReplicas
+          value: 1
+      - equal:
+          path: spec.maxReplicas
+          value: 3
+
+  - it: should configure Istio traffic routing
+    template: istio-destinationrule.yaml
+    asserts:
+      - isKind:
+          of: DestinationRule
+      - equal:
+          path: spec.subsets[0].name
+          value: stable
+      - equal:
+          path: spec.subsets[1].name
+          value: canary
+
+  - it: should configure VirtualService with dev01 domains
+    template: istio-virtualservice.yaml
+    asserts:
+      - isKind:
+          of: VirtualService
+      - contains:
+          path: spec.hosts
+          content: "base-chart.vf-dev2.org"
+
+  - it: should configure ServiceMonitor for Prometheus
+    template: servicemonitor.yaml
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+      - equal:
+          path: metadata.labels.release
+          value: kube-prometheus-stack
+
+  - it: should configure Gateway for public access
+    template: istio-gateway.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Gateway
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-base-chart-public-gateway
+      - contains:
+          path: spec.servers[0].hosts
+          content: "base-chart.vf-dev2.org"

@@ -1,0 +1,153 @@
+suite: Security and RBAC Configuration Tests
+templates:
+  - serviceaccount.yaml
+  - rollout.yaml
+  - secrets.yaml
+  - secretsEnvVars.yaml
+tests:
+  - it: should configure ServiceAccount with IAM role annotation
+    template: serviceaccount.yaml
+    values:
+      - ../envs/dev01/vf-dev2/values.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: "arn:aws:iam::ACCOUNT-ID:role/base-chart.vf-dev2.pod"
+
+  - it: should configure automount service account token
+    template: serviceaccount.yaml
+    asserts:
+      - equal:
+          path: automountServiceAccountToken
+          value: true
+
+  - it: should disable automount when configured
+    template: serviceaccount.yaml
+    set:
+      serviceAccount.automount: false
+    asserts:
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+
+  - it: should configure pod security context with sysctls
+    template: rollout.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.securityContext.sysctls
+          content:
+            name: net.core.somaxconn
+            value: "16384"
+
+  - it: should configure container security context when enabled
+    template: rollout.yaml
+    set:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        capabilities:
+          drop:
+            - ALL
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: should mount config directory as readonly
+    template: rollout.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: config-dir
+            mountPath: /usr/verticles/conf
+            readOnly: true
+
+  - it: should mount datadog socket as readonly
+    template: rollout.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dsdsocket
+            mountPath: /var/run/datadog
+            readOnly: true
+
+  - it: should configure projected volume for secrets and configmaps
+    template: rollout.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config-dir
+            projected:
+              sources:
+                - configMap:
+                    name: RELEASE-NAME-base-chart
+
+  - it: should render secrets when configured
+    template: secrets.yaml
+    set:
+      Secrets:
+        database-password: "secret-value"
+        api-key: "another-secret"
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: type
+          value: Opaque
+      - isNotEmpty:
+          path: data
+
+  - it: should not render secrets when empty
+    template: secrets.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render secretsEnvVars when configured
+    template: secretsEnvVars.yaml
+    set:
+      secretsEnvVars:
+        DATABASE_PASSWORD: "secret-password"
+        API_TOKEN: "secret-token"
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-base-chart-secretsEnvVars
+
+  - it: should configure envFrom in rollout when secretsEnvVars exist
+    template: rollout.yaml
+    set:
+      secretsEnvVars:
+        DATABASE_PASSWORD: "secret-password"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: RELEASE-NAME-base-chart-secretsEnvVars
+
+  - it: should enable ptrace capability when configured
+    template: rollout.yaml
+    set:
+      System.EnablePtrace: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          content: SYS_PTRACE
+
+  - it: should not enable ptrace capability by default
+    template: rollout.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
