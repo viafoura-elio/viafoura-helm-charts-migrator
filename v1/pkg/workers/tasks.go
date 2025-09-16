@@ -18,7 +18,6 @@ type ServiceMigrationTask struct {
 	Config          *config.Config
 	ChartCopier     adapters.ChartCopier
 	ValuesExtractor adapters.ValuesExtractor
-	FileManager     adapters.FileManager
 	Pipeline        *adapters.TransformationPipeline
 	DryRun          bool
 	log             *logger.NamedLogger
@@ -30,7 +29,6 @@ func NewServiceMigrationTask(
 	cfg *config.Config,
 	chartCopier adapters.ChartCopier,
 	extractor adapters.ValuesExtractor,
-	fileManager adapters.FileManager,
 	pipeline *adapters.TransformationPipeline,
 	dryRun bool,
 ) *ServiceMigrationTask {
@@ -40,7 +38,6 @@ func NewServiceMigrationTask(
 		Config:          cfg,
 		ChartCopier:     chartCopier,
 		ValuesExtractor: extractor,
-		FileManager:     fileManager,
 		Pipeline:        pipeline,
 		DryRun:          dryRun,
 		log:             logger.WithName("service-migration-task"),

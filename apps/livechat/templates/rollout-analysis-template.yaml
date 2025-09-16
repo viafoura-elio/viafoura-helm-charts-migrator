@@ -1,0 +1,49 @@
+{{- if .Values.rollout.analysis.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "livechat.fullname" . }}-success-rate
+  labels:
+    {{- include "livechat.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: service
+    - name: namespace
+  metrics:
+    - name: success-rate
+      initialDelay: 60s
+      interval: {{ .Values.rollout.analysis.interval }}
+      count: {{ .Values.rollout.analysis.count }}
+      successCondition: result[0] > {{ .Values.rollout.analysis.successCondition }}
+      failureLimit: {{ .Values.rollout.analysis.failureLimit }}
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.analysis.prometheus.address }}
+          query: >+
+            sum(irate(istio_requests_total{
+              reporter="source",
+              destination_service=~"{{`{{args.service}}`}}.{{`{{args.namespace}}`}}.svc.cluster.local",
+              response_code!~"5.*"}[40s])
+            )
+            /
+            sum(irate(istio_requests_total{
+              reporter="source",
+              destination_service=~"{{`{{args.service}}`}}.{{`{{args.namespace}}`}}.svc.cluster.local"}[40s])
+            )
+    - name: avg-response-time
+      initialDelay: 60s
+      interval: {{ .Values.rollout.analysis.interval }}
+      count: {{ .Values.rollout.analysis.count }}
+      successCondition: result[0] <= {{ .Values.rollout.analysis.responseTimeThreshold }}
+      failureLimit: {{ .Values.rollout.analysis.failureLimit }}
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.analysis.prometheus.address }}
+          query: >+
+            histogram_quantile(0.95,
+              sum(irate(istio_request_duration_milliseconds_bucket{
+                reporter="source",
+                destination_service=~"{{`{{args.service}}`}}.{{`{{args.namespace}}`}}.svc.cluster.local"}[40s])
+              ) by (le)
+            )
+{{- end }}

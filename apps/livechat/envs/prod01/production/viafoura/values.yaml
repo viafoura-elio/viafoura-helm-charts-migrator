@@ -1,0 +1,49 @@
+Autoscaling:
+  Target:
+    Cpu: 50
+  enabled: true
+  maxReplicas: 15
+  minReplicas: 2
+ConfigMap:
+  application.properties:
+    auth.client_uuid: 35744d6e-a18b-44a5-b57f-7720692a3c1b
+    auth.service_base_uri: https://auth.viafoura.co
+    auth.service_uri: https://auth.viafoura.io/authorize_client
+    compliance.export.bucket: viafoura-gdpr-exports
+    customer.keys.get_retry_count: 3
+    customer.keys.get_retry_wait_ms: 50
+    feature.flag.decorate_contents_with_bans_count.enabled: true
+    livechat.service.mysql.host: livechat.cluster-ccfeqgys4gfe.us-east-1.rds.amazonaws.com
+    livechat.service.mysql.max_pool_size: 50
+    livechat.service.mysql.ro.host: livechat.cluster-ro-ccfeqgys4gfe.us-east-1.rds.amazonaws.com
+    livechat.service.mysql.ro.max_pool_size: 50
+    media.export.bucket: origin-usercontentmedia.viafoura.net
+    media.export.distribution_prefix: https://usercontentmedia.viafoura.net/
+    section_tree.client.cache_expiry_sec: 600
+    section_tree.client.timeout_ms: 500
+    settings_client.cache_expiry_ms: 300000
+    settings_service.request_timeout_ms: 500
+    v2api.uri: https://api.viafoura.co/v2
+    validation.originUrl.definedDomainCheck.enabled: true
+  vfmetrics.properties:
+    datadog.tags: environment:viafoura
+    reporters: datadog
+Deployment:
+  Replicas: 2
+Env:
+  JAVA_OPTS: -XX:NativeMemoryTracking=summary -Xms600m -Xmx600m -Dthumbnailator.conserveMemoryWorkaround=true -Dlog4j2.formatMsgNoLookups=True
+  LOG_APP_LEVEL: INFO
+  LOG_APPENDER_NAME: ConsoleJsonAppender
+  LOG_ROOT_LEVEL: ERROR
+  LOG_VIAFOURA_LEVEL: WARN
+Image:
+  Tag: v5.4.0
+Ingress:
+  Host: chat.viafoura.co
+Resources:
+  limits:
+    cpu: 1001m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi

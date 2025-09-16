@@ -29,7 +29,6 @@ type Migrator struct {
 	sops        services.SOPSService
 	chartCopier adapters.ChartCopier
 	extractor   adapters.ValuesExtractor
-	fileManager adapters.FileManager
 	pipeline    *adapters.TransformationPipeline
 	log         *logger.NamedLogger
 	dryRun      bool
@@ -51,7 +50,6 @@ func NewMigrator(
 	// Create adapter components
 	chartCopier := adapters.NewChartCopier(cfg, file)
 	extractor := adapters.NewValuesExtractor(cfg, transform)
-	fileManager := adapters.NewFileManager(file)
 	pipeline := adapters.NewTransformationPipeline(cfg, file, transform)
 
 	return &Migrator{
@@ -64,7 +62,6 @@ func NewMigrator(
 		sops:        sops,
 		chartCopier: chartCopier,
 		extractor:   extractor,
-		fileManager: fileManager,
 		pipeline:    pipeline,
 		log:         logger.WithName("migrator"),
 		dryRun:      dryRun,

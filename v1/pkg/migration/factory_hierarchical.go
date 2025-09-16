@@ -442,7 +442,6 @@ func (pm *ParallelMigrator) Run(ctx context.Context) error {
 			nil, // These will be created per-task
 			nil,
 			nil,
-			nil,
 			pm.opts.DryRun,
 		)
 		tasks = append(tasks, task)

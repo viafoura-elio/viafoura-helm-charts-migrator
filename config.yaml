@@ -8,7 +8,7 @@ globals:
 
   # Performance configuration
   performance:
-    maxConcurrentServices: 0      # Process up to 5 services in parallel
+    maxConcurrentServices: 5      # Process up to 5 services in parallel
     showProgress: true             # Show progress during migration
 
   # SOPS encryption/decryption configuration
@@ -434,7 +434,7 @@ services:
     alias: lgdprc
     name: legacy-gdpr-connector
   livechat:
-    enabled: false
+    enabled: true
     alias: lv
     name: livechat
     secrets:
@@ -449,7 +449,7 @@ services:
         - ".*jwt.*secret.*"
       description: "Livechat service database and JWT secrets"
   livecomments:
-    enabled: true
+    enabled: false
     alias: lc
     name: livecomments
     capitalized: Live Comments

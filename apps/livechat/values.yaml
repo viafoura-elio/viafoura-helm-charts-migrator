@@ -1,0 +1,602 @@
+affinity: {}
+arch: amd64
+autoscaling:
+  behavior:
+    scaleDown:
+      policies:
+        - periodSeconds: 60
+          type: Percent
+          value: 10
+        - periodSeconds: 60
+          type: Pods
+          value: 1
+      selectPolicy: Min
+      stabilizationWindowSeconds: 300
+    scaleUp:
+      policies:
+        - periodSeconds: 60
+          type: Percent
+          value: 100
+        - periodSeconds: 60
+          type: Pods
+          value: 2
+      selectPolicy: Max
+      stabilizationWindowSeconds: 60
+  enabled: false
+  externalMetrics:
+    connectionMetricName: base_connections_current
+    enabled: false
+  maxReplicas: 100
+  minReplicas: 5
+  targetCPUUtilizationPercentage: 33
+backup:
+  cronjob:
+    activeDeadlineSeconds: 3600
+    backoffLimit: 2
+    backupType: application-data
+    concurrencyPolicy: Forbid
+    enabled: false
+    extraEnv: {}
+    failedJobsHistoryLimit: 1
+    image:
+      pullPolicy: IfNotPresent
+      repository: amazon/aws-cli
+      tag: 2.13.0
+    nodeSelector: {}
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    retentionDays: 30
+    s3:
+      bucket: ""
+      prefix: backups
+    schedule: 0 3 * * *
+    startingDeadlineSeconds: 300
+    successfulJobsHistoryLimit: 3
+    timeZone: UTC
+    tolerations: []
+    volumeMounts: []
+    volumes: []
+  enabled: false
+  monitoring:
+    alerting:
+      channels:
+        - slack
+        - email
+      enabled: true
+      severity: warning
+    enabled: true
+    metrics:
+      enabled: true
+      interval: 30s
+      path: /metrics
+  velero:
+    customResources:
+      - rollouts.argoproj.io
+      - virtualservices.networking.istio.io
+      - destinationrules.networking.istio.io
+      - gateways.networking.istio.io
+    enabled: false
+    hooks:
+      enabled: true
+    includeCustomResources: true
+    namespace: velero
+    retention: 720h
+    schedule: 0 2 * * *
+    storageLocation: default
+    volumeSnapshotLocations:
+      - default
+configMap: {}
+configMapEnvVars: {}
+datadog:
+  apm:
+    enabled: false
+    environment: production
+    serviceName: livechat
+  collectAllMetrics: true
+  collectHistogramBuckets: true
+  containerName: livechat
+  enabled: true
+  healthServiceCheck: true
+  ignoreMetrics:
+    - go_gc_.*
+    - go_goroutines
+    - process_.*_bytes
+    - prometheus_.*
+    - up
+  initConfig: {}
+  instanceConfig: {}
+  integration: jmx
+  jmx:
+    collect_default_jvm_metrics: true
+    collectDefaultMetrics: true
+    conf:
+      - include:
+          attribute:
+            HeapMemoryUsage:
+              alias: jvm.heap_memory
+              metric_type: gauge
+            NonHeapMemoryUsage:
+              alias: jvm.non_heap_memory
+              metric_type: gauge
+          domain: java.lang
+          type: Memory
+      - include:
+          attribute:
+            CollectionCount:
+              alias: jvm.gc.cms.count
+              metric_type: counter
+            CollectionTime:
+              alias: jvm.gc.cms.time
+              metric_type: counter
+          domain: java.lang
+          name: '*'
+          type: GarbageCollector
+      - include:
+          attribute:
+            DaemonThreadCount:
+              alias: jvm.daemon_thread_count
+              metric_type: gauge
+            ThreadCount:
+              alias: jvm.thread_count
+              metric_type: gauge
+          domain: java.lang
+          type: Threading
+      - include:
+          attribute:
+            ActiveConnections:
+              alias: app.db.active_connections
+              metric_type: gauge
+            IdleConnections:
+              alias: app.db.idle_connections
+              metric_type: gauge
+          domain: com.your.app
+          type: ConnectionPool
+    isJmx: true
+    java_bin_path: ""
+    java_options: ""
+    jmxUrl: ""
+    key_store_password: ""
+    key_store_path: ""
+    name: ""
+    new_gc_metrics: true
+    password: ""
+    processNameRegex: ""
+    rmi_client_timeout: 15000
+    rmi_connection_timeout: 20000
+    rmi_registry_ssl: false
+    service_check_prefix: jmx
+    tools_jar_path: ""
+    trust_store_password: ""
+    trust_store_path: ""
+    user: ""
+  logs:
+    enabled: true
+    logProcessingRules:
+      - name: exclude_health_checks
+        pattern: GET /health
+        type: exclude_at_match
+      - name: mask_credit_cards
+        pattern: \d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}
+        replacement: '****-****-****-****'
+        type: mask_sequences
+    service: livechat
+    source: livechat
+  metricTransformations:
+    labels:
+      - from: handler
+        to: endpoint
+      - from: method
+        to: http_method
+      - from: status_code
+        to: response_code
+  metrics:
+    - http_requests_total
+    - http_request_duration_seconds
+    - database_connections_active
+    - source: go_memstats_alloc_bytes
+      target: memory_allocated
+    - source: process_cpu_seconds_total
+      target: cpu_usage_seconds
+    - source: base_custom_metric_total
+      target: custom_operations
+    - source: prometheus_rule_evaluation_duration_seconds
+      target: rule_evaluation_time
+  metricsPath: /metrics
+  namespace: livechat
+  sendHistogramsBuckets: true
+  tags:
+    env: production
+    service: livechat
+    team: backend
+  timeout: 20
+defaultAnnotations: {}
+envVars: {}
+fullnameOverride: ""
+grafana:
+  dashboards:
+    annotations: {}
+    enabled: false
+    folder: Livechat
+    labels:
+      dashboardSource: livechat
+      grafanaDashboard: "1"
+hosts:
+  private:
+    domains: []
+    enabled: false
+  public:
+    domains:
+      - livechat.vf-dev2.org
+    enabled: true
+image:
+  name: livechat
+  pullPolicy: Always
+  repository: 218894879100.dkr.ecr.us-east-1.amazonaws.com
+  tag: v0.0.1
+imagePullSecrets: []
+istio:
+  ambient:
+    enabled: true
+    namespaceLabels:
+      istio.io/dataplane-mode: ambient
+    waypoint:
+      enabled: false
+      trafficType: service
+  certManager:
+    enabled: false
+    issuer: letsencrypt-prod
+  destinationRule:
+    trafficPolicy:
+      config:
+        connectionPool:
+          http:
+            http1MaxPendingRequests: 64
+            http2MaxRequests: 1000
+            maxRequestsPerConnection: 10
+            maxRetries: 3
+          tcp:
+            connectTimeout: 30s
+            maxConnections: 100
+            tcpKeepalive:
+              interval: 75s
+              time: 7200s
+        loadBalancer:
+          simple: LEAST_CONN
+        outlierDetection:
+          baseEjectionTime: 30s
+          consecutive5xxErrors: 5
+          consecutiveGatewayErrors: 5
+          interval: 30s
+          maxEjectionPercent: 50
+      enabled: false
+  enabled: true
+  faultInjection:
+    configs: {}
+    enabled: false
+  gateway:
+    additionalConfig: {}
+    annotations: {}
+    create: true
+    labels:
+      external-dns: "true"
+    name: ""
+    private:
+      selector:
+        app: istio-private-gateway
+    public:
+      selector:
+        app: istio-public-gateway
+    selector:
+      istio: ingressgateway
+    servers:
+      - enabled: true
+        ports:
+          - name: http
+            number: 80
+            protocol: HTTP
+        tls:
+          config:
+            httpsRedirect: true
+          enabled: true
+      - enabled: true
+        ports:
+          - name: https
+            number: 443
+            protocol: HTTP
+        tls:
+          config:
+            mode: AUTO_PASSTHROUGH
+          enabled: true
+      - enabled: false
+        ports:
+          - name: tcpsocket
+            number: 80
+            protocol: HTTP
+        tls:
+          config:
+            httpsRedirect: true
+          enabled: true
+  globals:
+    annotations: {}
+  sidecar:
+    enabled: false
+    injection:
+      mode: auto
+      namespaceLabel: istio-injection
+      podAnnotation: sidecar.istio.io/inject
+    proxy:
+      config: {}
+      image: ""
+      logLevel: warning
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+  virtualService:
+    additionalHttp: []
+    additionalRouteConfig: {}
+    gateways: []
+    host: ""
+livenessProbe:
+  config:
+    failureThreshold: 5
+    httpGet:
+      path: /healthy
+      port: 8080
+      scheme: HTTP
+    initialDelaySeconds: 40
+    periodSeconds: 30
+    successThreshold: 1
+    timeoutSeconds: 10
+  enabled: true
+nameOverride: ""
+networkPolicy:
+  denyAll:
+    enabled: false
+  egress:
+    allowAWSMetadata: true
+    allowDNS: true
+    allowHTTPS: true
+    allowSameNamespace: true
+    customRules: []
+    enabled: false
+  enabled: false
+  ingress:
+    allowIstioGateway: true
+    allowMonitoring: true
+    allowSameNamespace: true
+    customRules: []
+    monitoringNamespace: monitoring
+  monitoring:
+    datadogNamespace: datadog
+    enabled: true
+    prometheusNamespace: monitoring
+nodeSelector: {}
+podAffinity: []
+podAnnotations: {}
+podDisruptionBudget:
+  enabled: false
+  maxUnavailable: 1
+podLabels: {}
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  runAsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
+  supplementalGroups: []
+  sysctls: []
+podSecurityStandards:
+  allowHostPaths: false
+  allowedCapabilities: []
+  allowedHostPaths: []
+  allowedHostPortRanges: []
+  allowedSeccompProfiles: []
+  apparmor:
+    enabled: false
+    profiles: {}
+  compliance:
+    auditLogging:
+      enabled: true
+      levels:
+        - warn
+        - error
+    enabled: true
+    frameworks:
+      - pod-security-standards
+      - cis-kubernetes
+      - nist-cybersecurity
+  createPodSecurityPolicy: false
+  createSecurityContextConstraints: false
+  enabled: true
+  level: restricted
+rbac:
+  clusterRole:
+    annotations: {}
+    create: false
+    rules: []
+  create: true
+  role:
+    annotations: {}
+    create: true
+    rules: []
+readinessProbe:
+  config:
+    failureThreshold: 5
+    httpGet:
+      path: /healthy
+      port: 8080
+      scheme: HTTP
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 5
+  enabled: true
+replicaCount: 1
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+rollout:
+  analysis:
+    count: 3
+    enabled: false
+    failureLimit: 1
+    interval: 1m
+    prometheus:
+      address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+    responseTimeThreshold: 500
+    startingStep: 2
+    successCondition: 0.99
+    templates:
+      - templateName: success-rate
+  enabled: true
+  revisionHistoryLimit: 10
+  strategy:
+    blueGreen:
+      autoPromotionEnabled: false
+      autoPromotionSeconds: 30
+      enabled: false
+      previewReplicaCount: null
+      scaleDownDelaySeconds: 30
+    canary:
+      enabled: true
+      managedRoutes: []
+      maxSurge: 10%
+      maxUnavailable: 0
+      steps:
+        - setWeight: 1
+        - pause: {}
+        - setWeight: 5
+        - pause: {}
+        - setWeight: 10
+        - pause:
+            duration: 10m
+        - setWeight: 20
+        - pause:
+            duration: 10m
+        - setWeight: 30
+        - pause:
+            duration: 10m
+        - setWeight: 40
+        - pause:
+            duration: 10m
+        - setWeight: 50
+        - pause:
+            duration: 10m
+        - setWeight: 60
+        - pause:
+            duration: 10m
+        - setWeight: 80
+        - pause:
+            duration: 10m
+        - setWeight: 100
+        - pause: {}
+      trafficRouting:
+        istio:
+          destinationRule:
+            canarySubsetName: canary
+            name: ""
+            stableSubsetName: stable
+          virtualService:
+            name: ""
+            routes:
+              - primary
+secrets: {}
+secretsEnvVars: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
+service:
+  alias: livechat
+  annotations: {}
+  containerPorts:
+    jmx:
+      containerPort: 9016
+      containerPortName: jmx
+      containerProtocol: TCP
+      enabled: false
+      exposeService: false
+    metrics:
+      containerPort: 5555
+      containerPortName: metrics
+      containerProtocol: TCP
+      enabled: true
+      exposeService: true
+  name: livechat
+  nodePort: null
+  port: 8080
+  portName: http
+  protocol: TCP
+  targetPort: 8080
+  type: ClusterIP
+serviceAccount:
+  annotations: {}
+  automount: true
+  create: true
+  iamRole:
+    accountId: "218894879100"
+    enabled: true
+    name: ""
+    roleArn: ""
+  name: ""
+  podIdentity:
+    accountId: "218894879100"
+    associationName: ""
+    clusterName: ""
+    enabled: false
+    roleArn: ""
+    useNativeAssociation: false
+serviceMonitor:
+  enabled: true
+  interval: 10s
+  labels: {}
+  namespace: ""
+  namespaceSelector:
+    any: false
+    matchNames: []
+  path: /metrics
+  prometheusReleaseName: kube-prometheus-stack
+  scrapeTimeout: 5s
+startupProbe:
+  config:
+    failureThreshold: 30
+    httpGet:
+      path: /healthy
+      port: 8080
+      scheme: HTTP
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 5
+  enabled: true
+strategy:
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+  type: RollingUpdate
+tolerations: []
+topologySpreadConstraints: []
+volumeMounts: []
+volumes: []

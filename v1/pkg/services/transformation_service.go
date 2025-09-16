@@ -2,7 +2,6 @@ package services
 
 import (
 	"regexp"
-	"strings"
 
 	"helm-charts-migrator/v1/pkg/config"
 	"helm-charts-migrator/v1/pkg/keycase"

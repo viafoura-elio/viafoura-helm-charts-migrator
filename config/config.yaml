@@ -8,7 +8,7 @@ globals:
 
   # Performance configuration
   performance:
-    maxConcurrentServices: 5      # Process up to 5 services in parallel
+    maxConcurrentServices: 0      # Process up to 5 services in parallel
     showProgress: true             # Show progress during migration
 
   # SOPS encryption/decryption configuration

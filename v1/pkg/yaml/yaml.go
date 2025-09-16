@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/elioetibr/yaml"
 )
@@ -63,7 +64,7 @@ func DeepCopyMap(input map[string]interface{}) map[string]interface{} {
 	if input == nil {
 		return nil
 	}
-	
+
 	result := make(map[string]interface{})
 	for key, value := range input {
 		result[key] = deepCopyValue(value)
@@ -321,6 +322,140 @@ func UnmarshalStrict(data []byte, v interface{}) error {
 }
 
 // ============================================================================
+// Node Merging Functions
+// ============================================================================
+
+// MergeYAMLNodes merges two YAML mapping nodes, with values from source overriding dest
+// while preserving comments from both nodes intelligently
+func MergeYAMLNodes(dest, source *yaml.Node) {
+	if dest.Kind != yaml.MappingNode || source.Kind != yaml.MappingNode {
+		return
+	}
+
+	// Iterate through source key-value pairs
+	for i := 0; i < len(source.Content); i += 2 {
+		keyNode := source.Content[i]
+		valueNode := source.Content[i+1]
+
+		// Find matching key in destination
+		found := false
+		for j := 0; j < len(dest.Content); j += 2 {
+			destKeyNode := dest.Content[j]
+			if destKeyNode.Value == keyNode.Value {
+				// Key exists, merge or replace value
+				destValueNode := dest.Content[j+1]
+
+				// If both values are mappings, merge recursively
+				if destValueNode.Kind == yaml.MappingNode && valueNode.Kind == yaml.MappingNode {
+					MergeYAMLNodes(destValueNode, valueNode)
+				} else {
+					// Replace the value but preserve comments intelligently
+					newNode := *valueNode // Create a copy
+					// If source has a comment, use it; otherwise keep destination's comment
+					if valueNode.HeadComment != "" {
+						newNode.HeadComment = valueNode.HeadComment
+					} else if destValueNode.HeadComment != "" {
+						newNode.HeadComment = destValueNode.HeadComment
+					}
+					if valueNode.LineComment != "" {
+						newNode.LineComment = valueNode.LineComment
+					} else if destValueNode.LineComment != "" {
+						newNode.LineComment = destValueNode.LineComment
+					}
+					if valueNode.FootComment != "" {
+						newNode.FootComment = valueNode.FootComment
+					} else if destValueNode.FootComment != "" {
+						newNode.FootComment = destValueNode.FootComment
+					}
+					dest.Content[j+1] = &newNode
+				}
+				// Also update key comments if source has them
+				if keyNode.HeadComment != "" || keyNode.LineComment != "" || keyNode.FootComment != "" {
+					newKeyNode := *keyNode
+					dest.Content[j] = &newKeyNode
+				}
+				found = true
+				break
+			}
+		}
+
+		// If key not found, append it with all its comments
+		if !found {
+			dest.Content = append(dest.Content, keyNode, valueNode)
+		}
+	}
+}
+
+// MergeWith MergeDocuments merges two YAML documents, with values from source overriding dest
+// while preserving comments and structure
+func (d *Document) MergeWith(source *Document) error {
+	if d.node == nil || source.node == nil {
+		return fmt.Errorf("cannot merge nil documents")
+	}
+
+	// Both nodes should have Document nodes as their first content
+	if len(d.node.Content) == 0 || len(source.node.Content) == 0 {
+		return fmt.Errorf("invalid YAML structure for merging")
+	}
+
+	// Get the root mapping nodes
+	destRoot := d.node.Content[0]
+	sourceRoot := source.node.Content[0]
+
+	// Preserve head comments from source if they exist
+	if sourceRoot.HeadComment != "" {
+		destRoot.HeadComment = sourceRoot.HeadComment
+	}
+
+	// Merge source into dest
+	MergeYAMLNodes(destRoot, sourceRoot)
+
+	return nil
+}
+
+// ============================================================================
+// Comment Generation Functions
+// ============================================================================
+
+// SecretsHeadComment generates appropriate head comments for secrets.dec.yaml files
+// based on their hierarchical path in the configuration structure
+func SecretsHeadComment(path string) string {
+	// Helper function to generate the comment with DRY principle
+	generateComment := func(level string, override string) string {
+		base := fmt.Sprintf("# Placeholder to %s secrets level.\n", level)
+		cascade := "# Using Hierarchical configurations it will be cascaded to lower secrets.\n"
+		overrideMsg := fmt.Sprintf("# It can override %s.", override)
+		return base + cascade + overrideMsg
+	}
+
+	// Count the number of path segments to determine the hierarchy level
+	segments := strings.Split(strings.TrimSuffix(path, "/secrets.dec.yaml"), "/")
+	segmentCount := len(segments)
+
+	// Check for specific patterns based on path depth
+	// Pattern: apps/{service}/envs/...
+	if strings.HasPrefix(path, "apps/") && len(segments) >= 3 && segments[2] == "envs" {
+		switch segmentCount {
+		case 3:
+			// apps/{service}/envs/
+			return generateComment("global", "the secrets on root values.yaml")
+		case 4:
+			// apps/{service}/envs/{cluster}
+			return generateComment("cluster", "any previous secrets.dec.yaml file")
+		case 5:
+			// apps/{service}/envs/{cluster}/{environment}
+			return generateComment("environment", "any previous secrets.dec.yaml file")
+		case 6:
+			// apps/{service}/envs/{cluster}/{environment}/{namespace}
+			return generateComment("namespace", "any previous secrets.dec.yaml file")
+		}
+	}
+
+	// Default comment for unmatched patterns
+	return "# Configuration secrets file"
+}
+
+// ============================================================================
 // Specialized Document Creation Functions
 // ============================================================================
 
@@ -329,7 +464,7 @@ func UnmarshalStrict(data []byte, v interface{}) error {
 func (d *Document) NewSecretsDecYaml(headComment string, secretsData interface{}) yaml.Node {
 	// Create the secrets value node
 	var secretsValueNode *yaml.Node
-	
+
 	if secretsData != nil {
 		// We have actual secrets data, encode it
 		secretsValueNode = &yaml.Node{}
@@ -347,7 +482,7 @@ func (d *Document) NewSecretsDecYaml(headComment string, secretsData interface{}
 			Content: []*yaml.Node{}, // Empty mapping for {}
 		}
 	}
-	
+
 	return yaml.Node{
 		Kind: yaml.DocumentNode,
 		Content: []*yaml.Node{
