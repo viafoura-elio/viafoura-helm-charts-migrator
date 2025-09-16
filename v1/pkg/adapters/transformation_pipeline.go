@@ -9,6 +9,7 @@ import (
 	"helm-charts-migrator/v1/pkg/config"
 	"helm-charts-migrator/v1/pkg/logger"
 	"helm-charts-migrator/v1/pkg/services"
+	"helm-charts-migrator/v1/pkg/yaml"
 )
 
 // TransformationPipeline handles the transformation process
@@ -65,10 +66,8 @@ func (tp *TransformationPipeline) TransformService(serviceName string) error {
 				// Save secrets to secrets.dec.yaml
 				secretsPath := strings.Replace(path, "values.yaml", "secrets.dec.yaml", 1)
 
-				// Create secrets document with proper structure
-				secretsDoc := tp.createSecretsDocument(path, secrets)
-
-				if err := tp.saveSecretsFile(secretsPath, secretsDoc); err != nil {
+				// Create secrets document with proper structure using yaml package
+				if err := tp.saveSecretsDocument(secretsPath, secrets); err != nil {
 					tp.log.Error(err, "Failed to save secrets file", "path", secretsPath)
 				} else {
 					tp.log.V(2).InfoS("Saved secrets file", "path", secretsPath)
@@ -105,47 +104,37 @@ func (tp *TransformationPipeline) TransformService(serviceName string) error {
 	return nil
 }
 
-// createSecretsDocument creates a properly formatted secrets document
-func (tp *TransformationPipeline) createSecretsDocument(path string, secrets map[string]interface{}) map[string]interface{} {
-	// For now, just return the secrets map
-	// TODO: Add proper document structure with comments when needed
-	return map[string]interface{}{
-		"secrets": secrets,
-	}
-}
-
-// secretsHeadComment generates hierarchical comment based on path
-func (tp *TransformationPipeline) secretsHeadComment(path string) string {
-	parts := strings.Split(path, "/")
-	depth := 0
-
-	for i, part := range parts {
-		if part == "envs" && i+1 < len(parts) {
-			depth = len(parts) - i - 2
-			break
-		}
-	}
-
-	switch depth {
-	case 0: // cluster level
-		return "# Placeholder to cluster secrets level.\n# Using Hierarchical configurations it will be cascaded to lower secrets.\n# It can override any previous secrets.dec.yaml file."
-	case 1: // environment level
-		return "# Placeholder to environment secrets level.\n# Using Hierarchical configurations it will be cascaded to lower secrets.\n# It can override any previous secrets.dec.yaml file."
-	case 2: // namespace level
-		return "# Placeholder to namespace secrets level.\n# Using Hierarchical configurations it will be cascaded to lower secrets.\n# It can override any previous secrets.dec.yaml file."
-	default:
-		return "# Placeholder for secrets.\n# Using Hierarchical configurations it will be cascaded to lower secrets.\n# It can override any previous secrets.dec.yaml file."
-	}
-}
-
-// saveSecretsFile saves the secrets document to a file
-func (tp *TransformationPipeline) saveSecretsFile(path string, doc map[string]interface{}) error {
+// saveSecretsDocument saves the secrets with proper structure and comments
+// This method uses the yaml package to create properly formatted secrets.dec.yaml files
+func (tp *TransformationPipeline) saveSecretsDocument(path string, secrets map[string]interface{}) error {
 	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// Save as YAML
-	return tp.file.WriteYAML(path, doc)
+	// Generate appropriate comment based on path hierarchy
+	headComment := yaml.SecretsHeadComment(path)
+
+	// Create a document to use the NewSecretsDecYaml method
+	doc, err := yaml.FromMap(map[string]interface{}{})
+	if err != nil {
+		return fmt.Errorf("failed to create document: %w", err)
+	}
+
+	// Create the secrets YAML node with proper structure and comments
+	secretsNode := doc.NewSecretsDecYaml(headComment, secrets)
+
+	// Marshal the node to YAML
+	yamlData, err := yaml.MarshalNode(&secretsNode)
+	if err != nil {
+		return fmt.Errorf("failed to marshal secrets: %w", err)
+	}
+
+	// Write the YAML data to file
+	if err := os.WriteFile(path, yamlData, 0644); err != nil {
+		return fmt.Errorf("failed to write secrets file: %w", err)
+	}
+
+	return nil
 }
