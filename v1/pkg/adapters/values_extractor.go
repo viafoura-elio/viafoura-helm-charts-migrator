@@ -107,10 +107,10 @@ func (v *valuesExtractor) ExtractLegacySourceValues(sourcePath, serviceName, out
 // convertKeys converts keys to camelCase based on configuration
 func (v *valuesExtractor) convertKeys(values map[string]interface{}) map[string]interface{} {
 	converter := keycase.NewConverter()
-	
+
 	converter.SkipJavaProperties = v.config.SkipJavaProperties
 	converter.SkipUppercaseKeys = v.config.SkipUppercaseKeys
 	converter.MinUppercaseChars = v.config.MinUppercaseChars
-	
+
 	return converter.ConvertMap(values)
 }

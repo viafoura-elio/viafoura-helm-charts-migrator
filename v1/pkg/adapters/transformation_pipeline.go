@@ -33,7 +33,7 @@ func NewTransformationPipeline(cfg *config.Config, file services.FileService, tr
 func (tp *TransformationPipeline) TransformService(serviceName string) error {
 	paths := config.NewPaths("", "apps", ".cache").ForService(serviceName)
 	serviceDir := paths.ServiceDir()
-	
+
 	// Process all values.yaml files in the service directory
 	err := filepath.Walk(serviceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -45,13 +45,13 @@ func (tp *TransformationPipeline) TransformService(serviceName string) error {
 		}
 
 		// Skip certain files
-		if strings.Contains(path, "helm-values.yaml") || 
-		   strings.Contains(path, "legacy-values.yaml") {
+		if strings.Contains(path, "helm-values.yaml") ||
+			strings.Contains(path, "legacy-values.yaml") {
 			return nil
 		}
 
 		// Read values
-		values, err := tp.file.ReadYAML(path)
+		values, err := tp.file.ReadYAMLToMap(path)
 		if err != nil {
 			tp.log.Error(err, "Failed to read values file", "path", path)
 			return nil // Continue with other files
@@ -60,20 +60,20 @@ func (tp *TransformationPipeline) TransformService(serviceName string) error {
 		// Extract secrets if in envs directory
 		if strings.Contains(path, "/envs/") {
 			secrets, cleaned := tp.transform.ExtractSecrets(values)
-			
+
 			if len(secrets) > 0 {
 				// Save secrets to secrets.dec.yaml
 				secretsPath := strings.Replace(path, "values.yaml", "secrets.dec.yaml", 1)
-				
+
 				// Create secrets document with proper structure
 				secretsDoc := tp.createSecretsDocument(path, secrets)
-				
+
 				if err := tp.saveSecretsFile(secretsPath, secretsDoc); err != nil {
 					tp.log.Error(err, "Failed to save secrets file", "path", secretsPath)
 				} else {
 					tp.log.V(2).InfoS("Saved secrets file", "path", secretsPath)
 				}
-				
+
 				// Update values file with cleaned values
 				values = cleaned
 			}
@@ -118,14 +118,14 @@ func (tp *TransformationPipeline) createSecretsDocument(path string, secrets map
 func (tp *TransformationPipeline) secretsHeadComment(path string) string {
 	parts := strings.Split(path, "/")
 	depth := 0
-	
+
 	for i, part := range parts {
 		if part == "envs" && i+1 < len(parts) {
 			depth = len(parts) - i - 2
 			break
 		}
 	}
-	
+
 	switch depth {
 	case 0: // cluster level
 		return "# Placeholder to cluster secrets level.\n# Using Hierarchical configurations it will be cascaded to lower secrets.\n# It can override any previous secrets.dec.yaml file."

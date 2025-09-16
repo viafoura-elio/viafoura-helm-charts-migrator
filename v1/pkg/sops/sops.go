@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/elioetibr/yaml"
 	"github.com/getsops/sops/v3"
 	"github.com/getsops/sops/v3/aes"
 	"github.com/getsops/sops/v3/cmd/sops/common"
 	"github.com/getsops/sops/v3/config"
 	"github.com/getsops/sops/v3/decrypt"
-	"github.com/elioetibr/yaml"
 
 	"helm-charts-migrator/v1/pkg/logger"
 )

@@ -67,14 +67,14 @@ func initConfig() {
 		if err == nil {
 			viper.AddConfigPath(cwd)
 		}
-		
+
 		// Also look in home directory
 		home, err := os.UserHomeDir()
 		if err == nil {
 			viper.AddConfigPath(home)
 			viper.AddConfigPath(home + "/.config/helm-charts-migrator")
 		}
-		
+
 		viper.SetConfigType("yaml")
 		viper.SetConfigName("config")
 	}

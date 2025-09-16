@@ -53,9 +53,9 @@ func (r *reportService) RecordTransformation(file string, transformation Transfo
 	defer r.mu.Unlock()
 
 	r.transformations = append(r.transformations, transformation)
-	
+
 	if transformation.Error != nil {
-		r.log.V(2).InfoS("Transformation failed", 
+		r.log.V(2).InfoS("Transformation failed",
 			"file", file,
 			"type", transformation.Type,
 			"error", transformation.Error)
@@ -73,7 +73,7 @@ func (r *reportService) RecordExtraction(file string, extraction Extraction) {
 	defer r.mu.Unlock()
 
 	r.extractions = append(r.extractions, extraction)
-	
+
 	if extraction.Error != nil {
 		r.log.V(2).InfoS("Extraction failed",
 			"file", file,

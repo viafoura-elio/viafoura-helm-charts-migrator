@@ -23,7 +23,7 @@ func (c *ConfigLayer) Clone() *ConfigLayer {
 			Values: make(map[string]interface{}),
 		}
 	}
-	
+
 	cloned := &ConfigLayer{
 		Name:   c.Name,
 		Values: deepCopyMap(c.Values),
@@ -36,11 +36,11 @@ func (c *ConfigLayer) Merge(other *ConfigLayer) {
 	if other == nil || other.Values == nil {
 		return
 	}
-	
+
 	if c.Values == nil {
 		c.Values = make(map[string]interface{})
 	}
-	
+
 	mergeMapRecursive(c.Values, other.Values)
 }
 
@@ -122,7 +122,7 @@ func (h *HierarchicalConfig) SetServiceConfig(service string, values map[string]
 func (h *HierarchicalConfig) GetEffectiveConfig(cluster, env, namespace, service string) *ConfigLayer {
 	// Start with defaults
 	effective := h.defaults.Clone()
-	
+
 	// Apply override chain
 	layers := []struct {
 		name  string
@@ -134,10 +134,10 @@ func (h *HierarchicalConfig) GetEffectiveConfig(cluster, env, namespace, service
 		{"namespace", h.namespaces[h.buildNamespaceKey(cluster, env, namespace)]},
 		{"service", h.services[service]},
 	}
-	
+
 	for _, l := range layers {
 		if l.layer != nil {
-			h.log.V(3).InfoS("Applying configuration layer", 
+			h.log.V(3).InfoS("Applying configuration layer",
 				"layer", l.name,
 				"cluster", cluster,
 				"env", env,
@@ -146,13 +146,13 @@ func (h *HierarchicalConfig) GetEffectiveConfig(cluster, env, namespace, service
 			effective.Merge(l.layer)
 		}
 	}
-	
+
 	h.log.V(2).InfoS("Generated effective configuration",
 		"cluster", cluster,
 		"env", env,
 		"namespace", namespace,
 		"service", service)
-	
+
 	return effective
 }
 
@@ -162,12 +162,12 @@ func (h *HierarchicalConfig) LoadFromFile(path string) (*ConfigLayer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file %s: %w", path, err)
 	}
-	
+
 	var values map[string]interface{}
 	if err := yaml.Unmarshal(data, &values); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config from %s: %w", path, err)
 	}
-	
+
 	return &ConfigLayer{
 		Name:   filepath.Base(path),
 		Values: values,
@@ -182,14 +182,14 @@ func (h *HierarchicalConfig) LoadFromDirectory(baseDir string) error {
 		h.SetDefaults(layer.Values)
 		h.log.InfoS("Loaded defaults", "path", defaultsPath)
 	}
-	
+
 	// Load globals.yaml if exists
 	globalsPath := filepath.Join(baseDir, "globals.yaml")
 	if layer, err := h.LoadFromFile(globalsPath); err == nil {
 		h.SetGlobals(layer.Values)
 		h.log.InfoS("Loaded globals", "path", globalsPath)
 	}
-	
+
 	// Load cluster configs
 	clustersDir := filepath.Join(baseDir, "clusters")
 	if clusters, err := filepath.Glob(filepath.Join(clustersDir, "*.yaml")); err == nil {
@@ -201,7 +201,7 @@ func (h *HierarchicalConfig) LoadFromDirectory(baseDir string) error {
 			}
 		}
 	}
-	
+
 	// Load service configs
 	servicesDir := filepath.Join(baseDir, "services")
 	if services, err := filepath.Glob(filepath.Join(servicesDir, "*.yaml")); err == nil {
@@ -213,24 +213,24 @@ func (h *HierarchicalConfig) LoadFromDirectory(baseDir string) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
 // GetConfigDiff returns the differences between two configuration layers
 func (h *HierarchicalConfig) GetConfigDiff(base, override *ConfigLayer) map[string]interface{} {
 	diff := make(map[string]interface{})
-	
+
 	if base == nil || base.Values == nil {
 		return override.Values
 	}
-	
+
 	if override == nil || override.Values == nil {
 		return make(map[string]interface{})
 	}
-	
+
 	findDifferences(base.Values, override.Values, diff, "")
-	
+
 	return diff
 }
 
@@ -248,7 +248,7 @@ func deepCopyMap(m map[string]interface{}) map[string]interface{} {
 	if m == nil {
 		return nil
 	}
-	
+
 	result := make(map[string]interface{})
 	for k, v := range m {
 		switch val := v.(type) {
@@ -267,7 +267,7 @@ func deepCopySlice(s []interface{}) []interface{} {
 	if s == nil {
 		return nil
 	}
-	
+
 	result := make([]interface{}, len(s))
 	for i, v := range s {
 		switch val := v.(type) {
@@ -288,7 +288,7 @@ func mergeMapRecursive(dest, src map[string]interface{}) {
 			// Both are maps - merge recursively
 			destMap, destIsMap := destValue.(map[string]interface{})
 			srcMap, srcIsMap := srcValue.(map[string]interface{})
-			
+
 			if destIsMap && srcIsMap {
 				mergeMapRecursive(destMap, srcMap)
 			} else {
@@ -308,14 +308,14 @@ func findDifferences(base, override map[string]interface{}, diff map[string]inte
 		if path != "" {
 			fullPath = path + "." + key
 		}
-		
+
 		if baseValue, exists := base[key]; exists {
 			// Key exists in both - check if different
 			if !reflect.DeepEqual(baseValue, overrideValue) {
 				// Values are different
 				baseMap, baseIsMap := baseValue.(map[string]interface{})
 				overrideMap, overrideIsMap := overrideValue.(map[string]interface{})
-				
+
 				if baseIsMap && overrideIsMap {
 					// Both are maps - recurse
 					nestedDiff := make(map[string]interface{})

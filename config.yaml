@@ -449,7 +449,7 @@ services:
         - ".*jwt.*secret.*"
       description: "Livechat service database and JWT secrets"
   livecomments:
-    enabled: false
+    enabled: true
     alias: lc
     name: livecomments
     capitalized: Live Comments

@@ -538,7 +538,7 @@ func (m *MockFileService) WriteYAML(path string, data interface{}) error {
 	return os.WriteFile(path, []byte("# Mock YAML content"), 0644)
 }
 
-func (m *MockFileService) ReadYAML(path string) (map[string]interface{}, error) {
+func (m *MockFileService) ReadYAMLToMap(path string) (map[string]interface{}, error) {
 	return map[string]interface{}{"test": "data"}, nil
 }
 

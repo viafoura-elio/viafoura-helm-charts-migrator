@@ -1,0 +1,957 @@
+# Live Comments
+
+{{ template "chart.description" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+## Helm Chart Architecture Overview
+
+## Overview
+
+The Helm chart deploys a WebSocket-based event streaming application on Kubernetes. It bridges Kafka event streams to WebSocket clients, providing real-time event distribution with advanced deployment strategies, monitoring, and service mesh integration.
+
+## Architectural Diagram
+
+```mermaid
+graph TB
+    subgraph "External Access"
+        Client[WebSocket Clients]
+    end
+
+    subgraph "CICD AWS Account"
+        subgraph "CICD EKS Cluster"
+            ACD[ArgoCD]
+            AS[ApplicationSet<br/>Manifests]
+            APP[Application<br/>Resources]
+        end
+    end
+
+    subgraph "Application AWS Account"
+        subgraph "Application EKS Cluster"
+            subgraph "Istio Service Mesh"
+                IGW[Istio Gateway]
+                VS[VirtualService]
+                DR[DestinationRule]
+            end
+
+            subgraph "Application Namespace"
+                HPA[HPA]
+                MSVC[Metrics Service<br/>Port: 5555]
+                RO[Argo Rollout]
+                POD1[Pod Replica 1]
+                POD2[Pod Replica 2]
+                PODN[Pod Replica N]
+                SM[ServiceMonitor]
+                SVC[Service<br/>Port: 8080]
+                PDB[PodDisruptionBudget]
+            end
+
+            subgraph "Monitoring Namespace"
+                PROM[kube-prometheus-stack<br/>Prometheus]
+                PA[prometheus-adapter<br/>Custom Metrics API]
+                DD[Datadog Agent<br/>DaemonSet]
+            end
+
+            subgraph "Configuration"
+                CM[ConfigMaps]
+                SEC[Secrets]
+                SA[ServiceAccount]
+            end
+        end
+    end
+
+    subgraph "External Services"
+        Kafka[Kafka Cluster]
+        AWS[AWS Services<br/>via IRSA]
+        DDBackend[Datadog SaaS]
+    end
+
+    AS -->|Generates| APP
+    APP --> ACD
+    ACD -->|Cross-Account<br/>Deploy| RO
+    ACD -->|Manages| CM
+    ACD -->|Manages| SEC
+
+    Client -->|HTTPS/WSS| IGW
+    IGW --> VS
+    VS --> DR
+    DR --> SVC
+
+    PA -->|Custom Metrics| HPA
+    HPA -->|Scale| RO
+
+    SVC --> RO
+    RO --> POD1
+    RO --> POD2
+    RO --> PODN
+
+    POD1 --> Kafka
+    POD2 --> Kafka
+    PODN --> Kafka
+
+    POD1 --> AWS
+    SA -.->|IAM Role| AWS
+
+    CM --> POD1
+    SEC --> POD1
+
+    SM -.->|Discovery| PROM
+    PROM -->|Scrape /metrics| MSVC
+    MSVC --> POD1
+
+    PROM --> PA
+
+    DD -->|Collect| POD1
+    DD -->|Send| DDBackend
+
+    PDB -.->|Protect| RO
+
+    style Client fill:#f9f,stroke:#333,stroke-width:2px
+    style Kafka fill:#ff9,stroke:#333,stroke-width:2px
+    style DDBackend fill:#ff9,stroke:#333,stroke-width:2px
+    style AWS fill:#ff9,stroke:#333,stroke-width:2px
+    style ACD fill:#9f9,stroke:#333,stroke-width:2px
+    style AS fill:#9f9,stroke:#333,stroke-width:2px
+```
+
+## GitOps Architecture
+
+### ArgoCD and Argo Rollouts Integration
+
+```mermaid
+graph LR
+    subgraph "CICD AWS Account"
+        subgraph "CICD EKS Cluster"
+            ARGOCD[ArgoCD Controller]
+            APPSET[ApplicationSet<br/>Controller]
+            APPS[Application<br/>Resources]
+            REPO[Git Repository]
+        end
+    end
+
+    subgraph "Application AWS Account"
+        subgraph "App EKS Clusters"
+            subgraph "Dev Cluster"
+                DEV_RO[Argo Rollout]
+                DEV_APP[Application]
+            end
+
+            subgraph "Staging Cluster"
+                STG_RO[Argo Rollout]
+                STG_APP[Application]
+            end
+
+            subgraph "Prod Cluster"
+                PROD_RO[Argo Rollout]
+                PROD_APP[Application]
+            end
+        end
+    end
+
+    REPO -->|Pull| APPSET
+    APPSET -->|Generate| APPS
+    APPS --> ARGOCD
+
+    ARGOCD -->|Cross-Account<br/>Sync| DEV_RO
+    ARGOCD -->|Cross-Account<br/>Sync| STG_RO
+    ARGOCD -->|Cross-Account<br/>Sync| PROD_RO
+
+    DEV_RO -->|Deploy| DEV_APP
+    STG_RO -->|Deploy| STG_APP
+    PROD_RO -->|Deploy| PROD_APP
+```
+
+**Key Points:**
+- **ArgoCD** runs in a centralized CICD EKS cluster in a separate AWS account
+- **ApplicationSet** generates Application manifests for multiple environments
+- **Cross-account access** is configured for ArgoCD to deploy to application clusters
+- **Argo Rollouts** in each application cluster handles the actual deployment strategy
+
+### GitOps Workflow
+
+1. **Developer commits** changes to Git repository
+2. **ArgoCD ApplicationSet** detects changes and generates Application manifests
+3. **ArgoCD** syncs the manifests to target clusters across AWS accounts
+4. **Argo Rollouts** executes the deployment strategy (canary/blue-green)
+5. **Monitoring** validates the deployment health
+6. **Automatic rollback** if analysis fails
+
+## Component Architecture
+
+### 1. Deployment Strategy
+
+```mermaid
+graph LR
+    subgraph "Blue-Green Strategy"
+        B[Blue/Stable]
+        G[Green/Preview]
+        T1[100% Traffic] --> B
+        T2[0% Traffic] -.-> G
+    end
+
+    subgraph "Canary Strategy"
+        S[Stable]
+        C[Canary]
+        T3[95% Traffic] --> S
+        T4[5% Traffic] --> C
+    end
+
+    subgraph "Progressive Delivery"
+        Step1[5%] --> Step2[10%]
+        Step2 --> Step3[20%]
+        Step3 --> Step4[50%]
+        Step4 --> Step5[100%]
+    end
+```
+
+The chart uses **Argo Rollouts** for advanced deployment strategies:
+- **Blue-Green**: Instant switch between versions with preview testing
+- **Canary**: Progressive traffic shifting with automated analysis
+- **Rollback**: Automatic rollback on failure detection
+
+### 2. Service Mesh Integration
+
+```mermaid
+graph TD
+    subgraph "Istio Components"
+        GW[Gateway]
+        VS[VirtualService]
+        DR[DestinationRule]
+        EF[EnvoyFilter]
+    end
+
+    subgraph "Traffic Management"
+        PUB[Public Gateway<br/>external-dns: true]
+        PRIV[Private Gateway<br/>internal only]
+    end
+
+    subgraph "Traffic Routing"
+        HTTP[HTTP → HTTPS<br/>Redirect]
+        WSS[WebSocket<br/>Upgrade]
+        CAN[Canary<br/>Routing]
+    end
+
+    GW --> PUB
+    GW --> PRIV
+    VS --> HTTP
+    VS --> WSS
+    VS --> CAN
+    DR --> |Load Balancing|LB[LEAST_CONN]
+    DR --> |Connection Pool|CP[Max: 100]
+    EF --> |Custom Logic|CL[Request Headers]
+```
+
+### 3. Monitoring Architecture
+
+```mermaid
+graph TB
+    subgraph "Application Namespace"
+        subgraph "Application Pods"
+            APP[Metrics Endpoint<br/>:5555/metrics]
+            JMX[JMX Port<br/>:9016]
+        end
+
+        SM[ServiceMonitor<br/>app: base]
+        SVC[Metrics Service<br/>Port: 5555]
+        HPA[HorizontalPodAutoscaler]
+    end
+
+    subgraph "Monitoring Namespace"
+        subgraph "kube-prometheus-stack"
+            PROM[Prometheus Server]
+            AM[AlertManager]
+            GO[Grafana]
+            PO[Prometheus Operator]
+        end
+
+        subgraph "prometheus-adapter"
+            PA[Custom Metrics API<br/>v1beta1.custom.metrics.k8s.io]
+            PAC[Adapter Config]
+        end
+
+        subgraph "Datadog Agent"
+            DSD[DogStatsD<br/>Unix Socket]
+            APM[APM Agent]
+            LOGS[Log Collector]
+        end
+    end
+
+    subgraph "Metrics Flow"
+        APP --> SVC
+        SM -.->|Selects| SVC
+        PO -.->|Creates| PROM
+        PO -.->|Watches| SM
+        PROM -->|Scrapes| SVC
+        PROM -->|Stores| TS[(Time Series DB)]
+
+        PA -->|Queries| PROM
+        PAC -.->|Rules| PA
+        PA -->|Exposes| API[Metrics API]
+        HPA -->|Queries| API
+
+        APP --> DSD
+        JMX --> DSD
+        APP --> APM
+        APP --> LOGS
+
+        GO -->|Queries| PROM
+        AM -->|Alerts| PROM
+    end
+
+    subgraph "Metric Types"
+        M1[realtimeeventfeed_connections_current]
+        M2[realtimeeventfeed_event_latency]
+        M3[realtimeeventfeed_kafka_stream_*]
+        M4[jvm_memory_*]
+        M5[process_cpu_*]
+    end
+
+    style PO fill:#9ff,stroke:#333,stroke-width:2px
+    style PA fill:#9ff,stroke:#333,stroke-width:2px
+```
+
+### 4. Configuration Management
+
+The chart provides a sophisticated configuration management system that handles both file-based and environment variable configurations, with intelligent merging between ConfigMaps and Secrets.
+
+```mermaid
+graph TD
+    subgraph "Configuration Sources"
+        VALUES["values.yaml"]
+        ENVOVR["Environment<br/>Overrides"]
+        GITOPS["GitOps/ArgoCD<br/>Overrides"]
+    end
+
+    subgraph "Helm Processing"
+        PROC["Template Processing"]
+        VALIDATION["Values Validation"]
+        CHECKSUM["Checksum Generation"]
+    end
+
+    subgraph "Kubernetes Resources"
+        CM["ConfigMap<br/>configMap"]
+        CMENV["ConfigMap<br/>configMapEnvVars"]
+        SEC["Secret<br/>secrets"]
+        SECENV["Secret<br/>secretsEnvVars"]
+        ENVVARS["Pod env<br/>envVars"]
+    end
+
+    subgraph "Init Container Processing"
+        INIT["config-merger<br/>Init Container"]
+        MERGE["Intelligent Merge<br/>Properties Files"]
+        COPY["Copy Non-Properties<br/>Files"]
+    end
+
+    subgraph "Runtime Configuration"
+        CONFDIR["/app/conf/<br/>Merged Config"]
+        ENVRUNTIME["Environment<br/>Variables"]
+        VOLS["Volume Mounts"]
+    end
+
+    subgraph "Application Access"
+        APP["Application"]
+        PROPS["Properties Loading"]
+        ENVACCESS["Environment Access"]
+    end
+
+    VALUES --> PROC
+    ENVOVR --> PROC
+    GITOPS --> PROC
+    
+    PROC --> VALIDATION
+    VALIDATION --> CHECKSUM
+    CHECKSUM --> CM
+    CHECKSUM --> CMENV
+    CHECKSUM --> SEC
+    CHECKSUM --> SECENV
+    CHECKSUM --> ENVVARS
+
+    CM --> INIT
+    SEC --> INIT
+    INIT --> MERGE
+    INIT --> COPY
+    MERGE --> CONFDIR
+    COPY --> CONFDIR
+
+    CMENV --> ENVRUNTIME
+    SECENV --> ENVRUNTIME
+    ENVVARS --> ENVRUNTIME
+
+    CONFDIR --> VOLS
+    VOLS --> APP
+    ENVRUNTIME --> APP
+    APP --> PROPS
+    APP --> ENVACCESS
+
+    style INIT fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style MERGE fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style CONFDIR fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+```
+
+#### Configuration Processing Flow
+
+1. **Template Processing**: Helm processes values.yaml and generates Kubernetes resources
+2. **Resource Creation**: Four types of configuration resources are created:
+   - **ConfigMap (configMap)**: File-based configuration (.properties files)
+   - **ConfigMap (configMapEnvVars)**: Environment variables from ConfigMaps
+   - **Secret (secrets)**: Sensitive file-based configuration
+   - **Secret (secretsEnvVars)**: Sensitive environment variables
+
+3. **Init Container Merge**: The `config-merger` init container intelligently merges configurations:
+   - **Properties Files**: Merges .properties files from both ConfigMap and Secret
+   - **Non-Properties Files**: Copies all other files from both sources
+   - **Precedence**: Secret values override ConfigMap values for same keys
+
+4. **Runtime Delivery**: Applications access configuration through:
+   - **Volume Mounts**: Merged files in `/app/conf/`
+   - **Environment Variables**: Loaded from configMapEnvVars and secretsEnvVars
+   - **Direct Access**: Original ConfigMap and Secret mounts available
+
+#### Configuration Types and Usage
+
+```yaml
+# values.yaml configuration structure
+configMap:
+  application.properties:
+    server.port: 8080
+    kafka.bootstrap.servers: "localhost:9092"
+    logging.level.com.viafoura: DEBUG
+  
+  vfmetrics.properties:
+    metrics.port: 5555
+    metrics.path: /metrics
+    metrics.enabled: true
+
+secrets:
+  application.properties:
+    kafka.username: "secure-user"
+    kafka.password: "secure-password"
+    database.password: "db-secret"
+  
+  credentials.properties:
+    api.key: "secret-api-key"
+    jwt.secret: "signing-secret"
+
+configMapEnvVars:
+  LOG_LEVEL: "INFO"
+  DEBUG_MODE: "false"
+  API_TIMEOUT: "30s"
+
+secretsEnvVars:
+  DATABASE_PASSWORD: "postgres-password"
+  API_TOKEN: "external-service-token"
+
+envVars:
+  JAVA_OPTIONS: "-Xms100m -Xmx100m"  # Example for Java services
+```
+
+#### Merge Behavior
+
+The init container performs intelligent merging:
+
+1. **Properties Files with Same Name**:
+   ```properties
+   # Final application.properties (merged)
+   # ConfigMap properties
+   server.port=8080
+   kafka.bootstrap.servers=localhost:9092
+   
+   # Secret properties (override ConfigMap)
+   kafka.username=secure-user
+   kafka.password=secure-password
+   ```
+
+2. **File Precedence**:
+   - Properties files: ConfigMap + Secret (merged)
+   - Non-properties files: Secret overrides ConfigMap if same filename
+   - Unique files: Copied from respective sources
+
+3. **Volume Mount Structure**:
+   ```bash
+   /app/conf/                    # Merged configuration (primary)
+   ├── application.properties    # Merged ConfigMap + Secret
+   ├── vfmetrics.properties     # From ConfigMap only
+   └── credentials.properties   # From Secret only
+   
+   /app/configmap/              # Original ConfigMap files
+   /app/secrets/                # Original Secret files
+   ```
+
+#### Security Considerations
+
+- **Checksum Updates**: Configuration changes trigger pod restarts via checksum annotations
+- **Read-Only Access**: Configuration volumes are mounted read-only in main container
+- **Secure Init**: Init container runs with minimal security context
+- **Separation**: Clear separation between sensitive and non-sensitive configuration
+
+## Monitoring Stack Integration
+
+### kube-prometheus-stack Integration
+
+The chart integrates with the **kube-prometheus-stack** (v0.83.0) for comprehensive monitoring:
+
+1. **ServiceMonitor Resource**:
+   - Automatically discovered by Prometheus Operator
+   - Labeled with `release: kube-prometheus-stack` for proper selection
+   - Configures scraping of metrics endpoint every 10s
+
+2. **Prometheus Server**:
+   - Deployed in `monitoring` namespace
+   - Scrapes metrics from all pods via the metrics service
+   - Stores time-series data for querying
+
+3. **Grafana Integration**:
+   - Custom dashboard included in ConfigMap
+   - Visualizes application-specific metrics
+
+### prometheus-adapter Integration
+
+The **prometheus-adapter** (v0.12.0) enables custom metrics for autoscaling:
+
+1. **Custom Metrics API**:
+   - Exposes Prometheus metrics as Kubernetes custom metrics
+   - Implements `custom.metrics.k8s.io/v1beta1` API
+
+2. **HPA Integration**:
+   - HPA queries custom metrics like `realtimeeventfeed_connections_current`
+   - Enables scaling based on business metrics, not just CPU/memory
+
+3. **Configuration**:
+   ```yaml
+   # Example prometheus-adapter rule
+   rules:
+   - seriesQuery: 'realtimeeventfeed_connections_current'
+     resources:
+       overrides:
+         namespace: {resource: "namespace"}
+         pod: {resource: "pod"}
+     name:
+       matches: "^realtimeeventfeed_(.*)$"
+       as: "${1}"
+     metricsQuery: 'avg_over_time(<<.Series>>{<<.LabelMatchers>>}[2m])'
+   ```
+
+## Key Features
+
+### 1. High Availability
+- **Multi-replica deployment** with pod anti-affinity
+- **PodDisruptionBudget** ensuring minimum availability
+- **Health checks**: Liveness, Readiness, and Startup probes
+- **Automatic scaling** based on CPU, memory, or custom metrics
+
+### 2. Security
+- **ServiceAccount with IRSA** for AWS integration
+- **Network policies** via Istio
+- **TLS termination** at Gateway level
+- **Secrets management** with encryption
+
+### 3. Observability
+- **Prometheus metrics** with ServiceMonitor
+- **Datadog integration** for APM and logs
+- **Distributed tracing** support
+- **Custom dashboards** included
+
+### 4. Traffic Management
+- **Progressive delivery** with canary deployments
+- **A/B testing** capabilities
+- **Circuit breaking** and retry policies
+- **Load balancing** with connection pooling
+
+## Deployment Flow
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant Git as Git Repository
+    participant ArgoCD as ArgoCD (CICD Cluster)
+    participant K8s as Kubernetes (App Cluster)
+    participant PO as Prometheus Operator
+    participant Argo as Argo Rollouts
+    participant Istio as Istio
+    participant App as Application
+    participant Prom as kube-prometheus-stack
+
+    Dev->>Git: Push changes
+    ArgoCD->>Git: Detect changes
+    ArgoCD->>ArgoCD: ApplicationSet generates manifests
+    ArgoCD->>K8s: Cross-account sync
+    K8s->>K8s: Create ConfigMaps/Secrets
+    K8s->>K8s: Create ServiceAccount
+    K8s->>K8s: Create ServiceMonitor
+    PO->>PO: Detect ServiceMonitor
+    PO->>Prom: Configure Scrape Target
+    K8s->>Argo: Create/Update Rollout
+    Argo->>K8s: Create Pods (Canary)
+    K8s->>App: Start Application
+    App->>App: Load Configuration
+    App->>App: Connect to Kafka
+    App->>App: Start Metrics Server (:5555)
+    K8s->>Istio: Configure Gateway/VS/DR
+    Istio->>Istio: Setup Traffic Rules (5% canary)
+    App->>App: Start Health Endpoints
+    K8s->>K8s: Probes Succeed
+    Argo->>Argo: Mark as Ready
+    Prom->>App: Scrape /metrics
+    Argo->>Prom: Query Success Rate (Analysis)
+    Argo->>Argo: Progressive traffic shift
+    Istio->>App: Route Traffic (100%)
+```
+
+## Resource Hierarchy
+
+```yaml
+Namespace
+├── ServiceAccount (with IAM role)
+├── ConfigMaps
+│   ├── application.properties
+│   ├── vfmetrics.properties
+│   └── dashboard.json
+├── Secrets
+│   ├── API credentials
+│   └── Environment secrets
+├── Rollout (Argo)
+│   ├── ReplicaSet (stable)
+│   │   └── Pods
+│   └── ReplicaSet (canary)
+│       └── Pods
+├── Services
+│   ├── Main Service (8080)
+│   └── Metrics Service (5555)
+├── Monitoring
+│   ├── ServiceMonitor
+│   └── HorizontalPodAutoscaler
+├── Istio Resources
+│   ├── Gateway
+│   ├── VirtualService
+│   ├── DestinationRule
+│   └── EnvoyFilter
+└── PodDisruptionBudget
+```
+
+## Kubernetes Resource Calculation Guidelines
+
+### Overview
+This document provides formulas for calculating optimal Kubernetes resource values for containerized applications, with examples for JVM-based services using `-Xms100m -Xmx100m` heap settings.
+
+### Memory Calculation Formula
+
+#### Base Components
+```
+Total Container Memory = Heap + Non-Heap + Direct Memory + JVM Overhead + OS Buffer
+
+Where:
+- Heap = -Xmx value
+- Non-Heap = Metaspace + Code Cache + Thread Stacks + JVM Internal
+- Direct Memory = MaxDirectMemorySize (defaults to -Xmx if not set)
+- JVM Overhead = ~8-15% of (Heap + Non-Heap)
+- OS Buffer = ~10-20MB for container processes
+```
+
+#### Detailed Memory Request Calculation
+
+For `-Xmx100m`:
+
+```
+Memory Request Calculation:
+━━━━━━━━━━━━━━━━━━━━━━━━━
+Heap Memory          = 100 MB  (-Xmx100m)
+Metaspace           ≈  30 MB  (default ~20-50MB)
+Code Cache          ≈  15 MB  (default ~15-50MB)
+Thread Stacks       ≈  10 MB  (10 threads × 1MB stack)
+Other JVM Native    ≈  10 MB  (GC structures, symbols)
+Direct Memory       ≈  50 MB  (Netty buffers, ~50% of heap)
+JVM Overhead        ≈  20 MB  (~10% of above)
+OS/Container Buffer ≈  20 MB
+                      -------
+Total               ≈ 255 MB → Round to 256Mi (power of 2)
+```
+
+#### Memory Limit Calculation
+
+```
+Memory Limit Calculation:
+━━━━━━━━━━━━━━━━━━━━━━━━
+Base (from above)   = 255 MB
+Safety Factor       = 2x      (for spikes, GC, peak load)
+                      -------
+Total               = 510 MB → Round to 512Mi
+```
+
+### CPU Calculation Formula
+
+#### Base Formula
+```
+CPU Request = max(JVM threads × 10m, 100m)
+CPU Limit = CPU Request × 3-5x (for burst capacity)
+
+Where:
+- JVM threads ≈ 10-20 for typical Java app
+- 10m = 0.01 CPU core per thread baseline
+- Minimum 100m for scheduling priority
+```
+
+#### Application-Specific CPU Calculation
+
+```
+CPU Request Calculation:
+━━━━━━━━━━━━━━━━━━━━━━━
+Event Loop Threads  = 2 × cores (framework default)
+Worker Threads      = 20 (typical default)
+GC Threads          = 2-4
+Other JVM Threads   = 5-10
+                      -------
+Total Threads       ≈ 30-40
+Min Baseline        = 30 × 3m = 90m
+Recommended Min     = 100m (for better scheduling)
+
+CPU Limit Calculation:
+━━━━━━━━━━━━━━━━━━━━━
+Base Request        = 100m
+Burst Factor        = 5x (startup, peak loads)
+                      -------
+Total               = 500m
+```
+
+### Generic Formulas
+
+#### Memory Formula
+```python
+# Memory Request (Mi)
+memory_request = heap + (heap × direct_memory_factor) + metaspace + overhead + buffer
+
+# Memory Limit (Mi)
+memory_limit = memory_request × safety_factor
+
+# Where:
+# direct_memory_factor = 0.5-1.0 (depends on Netty usage)
+# metaspace = 30-50 MB
+# overhead = (heap + non_heap) × 0.1
+# buffer = 20 MB
+# safety_factor = 1.5-2.0
+```
+
+#### CPU Formula
+```python
+# CPU Request (millicores)
+cpu_request = max(minimum_cpu, active_threads × cpu_per_thread)
+
+# CPU Limit (millicores)
+cpu_limit = cpu_request × burst_factor
+
+# Where:
+# minimum_cpu = 100m
+# active_threads = event_loops + workers + jvm_threads
+# cpu_per_thread = 3-10m
+# burst_factor = 3-5
+```
+
+### Quick Reference Table
+
+| JVM Heap (-Xmx) | Memory Request | Memory Limit | CPU Request | CPU Limit |
+|-----------------|----------------|--------------|-------------|-----------|
+| 64m             | 192Mi          | 384Mi        | 100m        | 500m      |
+| 100m            | 256Mi          | 512Mi        | 100m        | 500m      |
+| 256m            | 512Mi          | 1Gi          | 200m        | 1000m     |
+| 512m            | 1Gi            | 2Gi          | 250m        | 1000m     |
+| 1g              | 2Gi            | 4Gi          | 500m        | 2000m     |
+| 2g              | 4Gi            | 6Gi          | 500m        | 2000m     |
+
+### Key Multipliers
+
+| Component | Multiplier | Reason |
+|-----------|-----------|---------|
+| Direct Memory | 0.5-1.0 × Heap | Netty allocates off-heap buffers |
+| Non-Heap | 0.5-0.8 × Heap | Metaspace, code cache, threads |
+| Safety Factor | 2.0x | GC spikes, peak loads |
+| CPU Burst | 3-5x | Startup, compilation, peak processing |
+
+### Tuning Guidelines
+
+#### When to Increase Memory
+- More Netty channels/connections: Increase direct memory factor to 0.8-1.0
+- More threads: Add 1MB per additional thread
+- Complex application: Increase metaspace by 20-50%
+- Frequent Full GCs: Increase heap and overall memory
+
+#### When to Increase CPU
+- High CPU throttling in metrics
+- Slow application startup
+- Complex computational workloads
+- Many concurrent requests
+
+#### When to Decrease Resources
+- Stable load patterns: Reduce safety factor to 1.5x
+- Simple applications: Reduce metaspace allocation
+- Few connections: Reduce direct memory factor to 0.3-0.5
+
+### Example Configurations
+
+#### Minimal Service
+```yaml
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+```
+
+#### Standard Service
+```yaml
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+```
+
+#### High-Load Service
+```yaml
+resources:
+  requests:
+    memory: "2Gi"
+    cpu: "1000m"
+  limits:
+    memory: "4Gi"
+    cpu: "4000m"
+```
+
+### Monitoring Commands
+
+```bash
+# Check actual memory usage
+kubectl top pods -n your-namespace
+
+# Get detailed JVM memory breakdown
+kubectl exec -it your-pod -- jcmd 1 VM.native_memory summary
+
+# Check for CPU throttling
+kubectl exec -it your-pod -- cat /sys/fs/cgroup/cpu/cpu.stat | grep throttled
+```
+
+### Notes
+
+1. These formulas provide starting points; always validate with actual metrics
+2. Container memory limits should be ~20% higher than JVM memory to prevent OOMKilled
+3. Use HorizontalPodAutoscaler for production workloads
+4. Consider using `-XX:+UseContainerSupport` for better container awareness
+5. Monitor and adjust based on actual usage patterns
+
+## Configuration Options
+
+### Essential Values
+
+```yaml
+# Core Configuration
+replicaCount: 2
+image:
+  repository: aws-ecr-url
+  tag: v1.0.0
+
+# Service Configuration
+service:
+  port: 8080
+  containerPorts:
+    metrics:
+      enabled: true
+      exposeService: true
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 33
+
+# Monitoring
+serviceMonitor:
+  enabled: true
+  prometheusReleaseName: kube-prometheus-stack
+
+# Deployment Strategy
+rollout:
+  enabled: true
+  strategy:
+    canary:
+      enabled: true
+      steps: [5%, 10%, 20%, 50%, 100%]
+  analysis:
+    prometheus:
+      # References in-cluster Prometheus from kube-prometheus-stack
+      address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+```
+
+## Best Practices
+
+1. **Resource Management**
+   - Set appropriate resource requests/limits
+   - Use HPA for dynamic scaling
+   - Configure PDB for availability
+
+2. **Security**
+   - Enable IRSA for AWS access
+   - Use secrets for sensitive data
+   - Configure network policies
+
+3. **Monitoring**
+   - Enable ServiceMonitor for Prometheus
+   - Configure Datadog for APM
+   - Set up alerts for critical metrics
+
+4. **Deployment**
+   - Use canary deployments for safety
+   - Configure analysis for automatic rollback
+   - Test in lower environments first
+
+## Troubleshooting
+
+See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common issues and solutions.
+
+## Testing
+
+The chart includes comprehensive tests:
+- Unit tests for template rendering
+- Integration tests for Kubernetes resources
+- Monitoring tests for observability
+- Security tests for compliance
+
+Run tests with:
+
+```bash
+helm test <release-name>
+```
+
+## Future Enhancements
+
+1. **Multi-region support** with federation across AWS accounts
+2. **Advanced traffic management** with locality preferences
+3. **Cost optimization** with spot instance support
+4. **Enhanced security** with Pod Security Standards
+5. **Multi-cluster ArgoCD** with sharding for scale
+6. **Progressive delivery** across regions with global rollouts
+
+## Installing the Chart
+
+To install the chart with the release name `my-release`:
+
+```console
+$ helm repo add foo-bar http://charts.foo-bar.com
+$ helm install my-release foo-bar/{{ template "chart.name" . }}
+```
+
+## Update Helm Schema and This README.md
+
+```bash
+helm-schema --add-schema-reference --helm-docs-compatibility-mode --append-newline && helm-docs .
+```
+
+---
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}
+
+{{ template "helm-docs.versionFooter" . }}

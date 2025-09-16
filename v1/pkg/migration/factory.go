@@ -4,31 +4,15 @@ import (
 	"context"
 	"fmt"
 
+	"helm-charts-migrator/v1/pkg/common"
 	"helm-charts-migrator/v1/pkg/config"
 	"helm-charts-migrator/v1/pkg/logger"
 	"helm-charts-migrator/v1/pkg/services"
 )
 
-// MigratorOptions contains configuration options for migration
-type MigratorOptions struct {
-	ConfigPath   string
-	SourcePath   string
-	TargetPath   string
-	BasePath     string
-	CacheDir     string
-	CleanupCache bool
-	RefreshCache bool
-	DryRun       bool
-	// Override options from CLI
-	Cluster    string
-	Namespaces []string
-	Services   []string
-	AwsProfile string
-	NoSOPS     bool // Skip SOPS encryption when true
-}
-
 // MigratorFactory creates migrators with proper dependencies - Factory Pattern
 type MigratorFactory struct {
+	opts   *common.MigratorOptions
 	config *config.Config
 	log    *logger.NamedLogger
 }
@@ -42,19 +26,19 @@ func NewMigratorFactory(cfg *config.Config) *MigratorFactory {
 }
 
 // CreateMigrator creates a migrator based on the provided options
-func (f *MigratorFactory) CreateMigrator(opts MigratorOptions) (*Migrator, error) {
+func (f *MigratorFactory) CreateMigrator(opts common.MigratorOptions) (*Migrator, error) {
 	// Create services with dependency injection
 	kubernetes := services.NewKubernetesService()
 	helm := services.NewHelmService()
 	file := services.NewFileService()
 	transform := services.NewTransformationService(f.config)
-	
+
 	// Create cache service
 	cache, err := services.NewCacheService(opts.CacheDir, opts.CleanupCache)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cache service: %w", err)
 	}
-	
+
 	// Create SOPS service
 	sopsConfig := &f.config.Globals.SOPS
 	// Set defaults if needed
@@ -65,7 +49,7 @@ func (f *MigratorFactory) CreateMigrator(opts MigratorOptions) (*Migrator, error
 		sopsConfig.Timeout = 30
 	}
 	sops := services.NewSOPSService(sopsConfig)
-	
+
 	// Create migrator with all dependencies
 	migrator := NewMigrator(
 		f.config,
@@ -75,15 +59,14 @@ func (f *MigratorFactory) CreateMigrator(opts MigratorOptions) (*Migrator, error
 		transform,
 		cache,
 		sops,
-		opts.DryRun,
-		opts.NoSOPS,
+		&opts,
 	)
-	
-	f.log.V(2).InfoS("Created migrator with dependency injection", 
+
+	f.log.V(2).InfoS("Created migrator with dependency injection",
 		"dryRun", opts.DryRun,
 		"noSOPS", opts.NoSOPS,
 		"cacheDir", opts.CacheDir)
-	
+
 	return migrator, nil
 }
 
@@ -93,7 +76,7 @@ type MigratorRunner interface {
 }
 
 // RunMigrationWithFactory is the entry point using the factory pattern
-func RunMigrationWithFactory(opts MigratorOptions) error {
+func RunMigrationWithFactory(opts common.MigratorOptions) error {
 	log := logger.WithName("migration")
 	log.Info("Starting migration process")
 

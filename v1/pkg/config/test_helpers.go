@@ -27,7 +27,7 @@ func NewTestConfigBuilder() *TestConfigBuilder {
 				},
 				Performance: PerformanceConfig{
 					MaxConcurrentServices: 5,
-					ShowProgress:         true,
+					ShowProgress:          true,
 				},
 				SOPS: SOPSConfig{
 					Enabled:         false,
@@ -65,7 +65,7 @@ func (b *TestConfigBuilder) Build() *Config {
 // CreateTestHierarchy creates a test hierarchical configuration
 func CreateTestHierarchy() *HierarchicalConfig {
 	hc := NewHierarchicalConfig()
-	
+
 	// Set defaults
 	hc.SetDefaults(map[string]interface{}{
 		"globals": map[string]interface{}{
@@ -75,13 +75,13 @@ func CreateTestHierarchy() *HierarchicalConfig {
 			},
 			"performance": map[string]interface{}{
 				"maxConcurrentServices": 5,
-				"showProgress":         true,
+				"showProgress":          true,
 			},
 		},
 		"clusters": map[string]interface{}{},
 		"services": map[string]interface{}{},
 	})
-	
+
 	// Set globals (overrides defaults)
 	hc.SetGlobals(map[string]interface{}{
 		"globals": map[string]interface{}{
@@ -98,7 +98,7 @@ func CreateTestHierarchy() *HierarchicalConfig {
 			},
 		},
 	})
-	
+
 	// Set cluster configs
 	hc.SetClusterConfig("prod01", map[string]interface{}{
 		"cluster": "prod01",
@@ -111,14 +111,14 @@ func CreateTestHierarchy() *HierarchicalConfig {
 			},
 		},
 	})
-	
+
 	hc.SetClusterConfig("dev01", map[string]interface{}{
 		"cluster": "dev01",
 		"source":  "kops-dev",
 		"target":  "eks-dev",
 		"default": false,
 	})
-	
+
 	// Set environment configs
 	hc.SetEnvironmentConfig("prod01", "production", map[string]interface{}{
 		"enabled": true,
@@ -131,7 +131,7 @@ func CreateTestHierarchy() *HierarchicalConfig {
 			},
 		},
 	})
-	
+
 	hc.SetEnvironmentConfig("dev01", "development", map[string]interface{}{
 		"enabled": true,
 		"namespaces": map[string]interface{}{
@@ -140,7 +140,7 @@ func CreateTestHierarchy() *HierarchicalConfig {
 			},
 		},
 	})
-	
+
 	// Set service configs
 	hc.SetServiceConfig("heimdall", map[string]interface{}{
 		"services": map[string]interface{}{
@@ -153,7 +153,7 @@ func CreateTestHierarchy() *HierarchicalConfig {
 			},
 		},
 	})
-	
+
 	hc.SetServiceConfig("auth", map[string]interface{}{
 		"services": map[string]interface{}{
 			"auth": map[string]interface{}{
@@ -162,14 +162,14 @@ func CreateTestHierarchy() *HierarchicalConfig {
 			},
 		},
 	})
-	
+
 	return hc
 }
 
 // CreateTestConfigDirectory creates a temporary directory with test config files
 func CreateTestConfigDirectory(t *testing.T) string {
 	tmpDir := t.TempDir()
-	
+
 	// Create defaults.yaml
 	defaultsContent := `
 defaults:
@@ -182,7 +182,7 @@ defaults:
 `
 	err := os.WriteFile(filepath.Join(tmpDir, "defaults.yaml"), []byte(defaultsContent), 0644)
 	require.NoError(t, err)
-	
+
 	// Create globals.yaml
 	globalsContent := `
 globals:
@@ -197,12 +197,12 @@ globals:
 `
 	err = os.WriteFile(filepath.Join(tmpDir, "globals.yaml"), []byte(globalsContent), 0644)
 	require.NoError(t, err)
-	
+
 	// Create clusters directory
 	clustersDir := filepath.Join(tmpDir, "clusters")
 	err = os.MkdirAll(clustersDir, 0755)
 	require.NoError(t, err)
-	
+
 	// Create prod01.yaml
 	prod01Content := `
 cluster: prod01
@@ -214,7 +214,7 @@ performance:
 `
 	err = os.WriteFile(filepath.Join(clustersDir, "prod01.yaml"), []byte(prod01Content), 0644)
 	require.NoError(t, err)
-	
+
 	// Create dev01.yaml
 	dev01Content := `
 cluster: dev01
@@ -224,12 +224,12 @@ default: false
 `
 	err = os.WriteFile(filepath.Join(clustersDir, "dev01.yaml"), []byte(dev01Content), 0644)
 	require.NoError(t, err)
-	
+
 	// Create services directory
 	servicesDir := filepath.Join(tmpDir, "services")
 	err = os.MkdirAll(servicesDir, 0755)
 	require.NoError(t, err)
-	
+
 	// Create heimdall.yaml
 	heimdallContent := `
 enabled: true
@@ -239,7 +239,7 @@ converter:
 `
 	err = os.WriteFile(filepath.Join(servicesDir, "heimdall.yaml"), []byte(heimdallContent), 0644)
 	require.NoError(t, err)
-	
+
 	// Create auth.yaml
 	authContent := `
 enabled: true
@@ -247,7 +247,7 @@ capitalized: Auth
 `
 	err = os.WriteFile(filepath.Join(servicesDir, "auth.yaml"), []byte(authContent), 0644)
 	require.NoError(t, err)
-	
+
 	return tmpDir
 }
 
@@ -291,30 +291,30 @@ func TestEnvironment(enabled bool, namespaces ...string) Environment {
 		Enabled:    enabled,
 		Namespaces: make(map[string]Namespace),
 	}
-	
+
 	for _, ns := range namespaces {
 		env.Namespaces[ns] = Namespace{
 			Enabled: true,
 			Name:    ns,
 		}
 	}
-	
+
 	return env
 }
 
 // AssertConfigEqual asserts two configs are equal with detailed error messages
 func AssertConfigEqual(t *testing.T, expected, actual *Config) {
 	t.Helper()
-	
+
 	// Check basic fields
 	require.Equal(t, expected.Cluster, actual.Cluster, "Cluster mismatch")
 	require.Equal(t, expected.Namespace, actual.Namespace, "Namespace mismatch")
-	
+
 	// Check globals
 	require.Equal(t, expected.Globals.Converter, actual.Globals.Converter, "Converter config mismatch")
 	require.Equal(t, expected.Globals.Performance, actual.Globals.Performance, "Performance config mismatch")
 	require.Equal(t, expected.Globals.SOPS, actual.Globals.SOPS, "SOPS config mismatch")
-	
+
 	// Check clusters
 	require.Equal(t, len(expected.Clusters), len(actual.Clusters), "Cluster count mismatch")
 	for name, expectedCluster := range expected.Clusters {
@@ -322,7 +322,7 @@ func AssertConfigEqual(t *testing.T, expected, actual *Config) {
 		require.True(t, exists, "Cluster %s not found", name)
 		require.Equal(t, expectedCluster, actualCluster, "Cluster %s mismatch", name)
 	}
-	
+
 	// Check services
 	require.Equal(t, len(expected.Services), len(actual.Services), "Service count mismatch")
 	for name, expectedService := range expected.Services {
@@ -345,7 +345,7 @@ func MockConfigForTesting() *Config {
 			},
 			Performance: PerformanceConfig{
 				MaxConcurrentServices: 10,
-				ShowProgress:         true,
+				ShowProgress:          true,
 			},
 			SOPS: SOPSConfig{
 				Enabled:         true,

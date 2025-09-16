@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"helm-charts-migrator/v1/pkg/common"
 	"helm-charts-migrator/v1/pkg/migration"
 )
 
@@ -26,7 +27,7 @@ var migrateCmd = &cobra.Command{
 	Short: "Migrate Helm charts",
 	Long:  `Migrate Helm charts from a source to a target location with various options.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return migration.RunMigrationWithFactory(migration.MigratorOptions{
+		return migration.RunMigrationWithFactory(common.MigratorOptions{
 			ConfigPath:   cfgFile,
 			SourcePath:   sourcePath,
 			TargetPath:   targetPath,

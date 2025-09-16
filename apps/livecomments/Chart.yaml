@@ -1,0 +1,55 @@
+apiVersion: v2
+name: livecomments
+description: Helm chart for Live Comments Service. It has a comprehensive security, operational excellence, and business continuity features
+
+# A chart can be either an 'application' or a 'library' chart.
+#
+# Application charts are a collection of templates that can be packaged into versioned archives
+# to be deployed.
+#
+# Library charts provide useful utilities or functions for the chart developer. They're included as
+# a dependency of application charts to inject those utilities and functions into the rendering
+# pipeline. Library charts do not define any templates and therefore cannot be deployed.
+type: application
+
+# This is the chart version. This version number should be incremented each time you make changes
+# to the chart and its templates, including the app version.
+# Versions are expected to follow Semantic Versioning (https://semver.org/)
+version: "0.0.1"
+
+# This is the version number of the application being deployed. This version number should be
+# incremented each time you make changes to the application. Versions are not expected to
+# follow Semantic Versioning. They should reflect the version the application is using.
+# It is recommended to use it with quotes.
+appVersion: "v0.0.1"
+
+keywords:
+  - livecomments
+  - microservice
+  - enterprise
+  - istio
+  - argo-rollouts
+  - prometheus
+  - monitoring
+  - security
+  - backup
+  - disaster-recovery
+  - networkpolicy
+  - pod-security-standards
+home: https://github.com/viafoura/livecomments
+icon: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAMAAABrrFhUAAAAS1BMVEVHcEzsICfsICfsICfsICfsICfsICfsICfsICfsICfsICfsICf////sHiX+6+vwTlTvOT//9vbtKzH4rK/7x8n829zyZWr2kZX0e38ZoCh8AAAAC3RSTlMAGs1z9ecJk1M3sRe6ZAoAAArYSURBVHja5V3tgqMwCFTjdzZtrW31/Z/01N291VbbJDAxKv/vtiDMACEkCFxKGoZFLrKsjKIkieV/iZMkisosE3kRhmmwR0kHzcte75HizxL3ligHO6T70r1X/Y3iL4bozbALK3TKi8xI95EkUSY2bYS0V95O9z9f6I2wSRt0n75MJF1UFw9l5wgb0z7vP72STKJU5wh5uCHPpzr+PCJsIxZCHs+ft0EpQt8/fhZJqESZx24Q5riPP3YDT9EghET+PDV6GAmd+tKh+GaCwq36QyR4ZIL+6yspj2qCldT3JRDSvIzlahKX+cqkWKyp/lAolMWq3p/I1WU9KEjzSHoh0TpxEGax9ESSLDzu5//GAudO4NHn/+EDt07g1ef/jwTHAv8V6WBl7l8GAkc5gY/u7zAMUj/d/y8M0oOhv2M2KErpvSCBoIjkBiSCWSBP5CYkyY8If3AoTEUsNyMxvwXSbEP692SQHlp/dguEW9OfOSEIM7k5UZLPAukG9e+FKwrS7fn/T3XIY4Gt6s+FhJvif0Q+sGX9ewscJf9H1QXFxvXvLECqDbdR/+Kq47CUO5AyPFoCxJYQbZsA6FSQJ3InYkcFewBAChCmpdyRWADhXgDAFgb2AwDflaEpDISR3JlE4REzAOtsII/3Z4A4P3IAmAXBHgPAKAj2GAAmQbDPADAIAiF3K+IYTSBae2hfNcBLTZAeFgF1cTDctQNolIUi3rcBPuHgfilQkwqF3L2Io7TBljoDb13gAA4gVXZoB3iPAkdwgHcoEB7CAd6gwEEcYNEF0ugoBlhwgTw+igHmK4K0lIeR2aLQoA+g9IX2r5XZX6f1BbQ7oUpeFuT8LJerev3517O2XF+VUvK69Ocv+nsMMgIHqnN9P2nKvT4//SZ1bW8nbbm1zxZUl+am/9dMYFBo63//MpD7829qK5N/XjXP+tdGf02fCXUhUF3rLyOpJ99QnU9m//z0pFJj8tdMYFAXAo01qB4TA7RfXxQDXm9m9tKHQe0IeFSGGtwuo9+kGlMDTAyoLicTcxvEgH4ZcDY1wFerKB4wMaC6fACgyhYGC90sUH1ywhlkGmtgGkGdTHDwAwLddDHgORvUPw5VbUXSwDgGJtD+wYBVq50JxJllIWzhAmNk+ujEczg4TnAaHgd4ioHCoA6y8OIJkpt70OmhaUBtDhhcoLDsBChZU5BcXW7mODgy4LsQrI12egnb4yDDXPAJyZU5kU5C+00I3k0cQKpRLmR4IGxO5mMcNM4ln6nwcdIBW6NcyLAXZuHFBkj+0YBLITjJuHRAQFjPBFl4sT6SfyaS+RDUTwL/18SpbTfYwovHSC5tqHCMgw2pDnrtDhfGzUAiFSoqFd6IFPhEhBbt8GsDQnJrKmzMlfglQpuxQIuEborkRCqs3xUcpiBgdyDUuqbC+1sqbG3Wmv6AgNVYmGdUeLNxgN9MwO5AhEiFipUKzSnwW3LDUpiRCm1KggnRNSQKHHfHrU+EzL34RqPCxZrKggJHrVH7Q3H3VLhAJI2tBgMK2o/GmlPhXauoMaVCKwr8Q0HCoTCpO2bRV5hvL1at9WbvoTFoPxZhAWQaRY12e/HaVCQE/M0FCddDbKjwylcVXtt7Vd2bC2G1e0YbC7CgwoqTCuXl/LiQVtt3NECajFJEKnyQqPB7VIA6LBPS7keQqFASu2N0SULiBRFFpEKLkqBlNUBBHY2iHhTRqJAsHQ8SLwhQD4qIVEg2gAiolySpVNiSqJAsGd0Aa1Mh1QDU6UBFOyiSkkqFNCkDhvnYhoLkal0qjBgMYNMdG2tAnZkgGoDhnui6MxPERIDFADQqlNSZCZoBOEbELXobVCrkwsE44PhfVpiZYHMBFgMQZyZskqn71S8DKNdUyFYR8BjA/UFR7ZcHWCV0NYEK+ZJBLgPYHBQRxgf5ygE2D5AuZyYYC0I+AxCrQqNkquarh/kM4HBmgrMpxGcAhzMTnG3BIGZ0AUdUyNkYjgPGrUGOxgc5+yE81SCFCh/mVMjZEesMwHljWrmYmWDtibJ0hMZU6GBmgrMr3huA9co0mQpPTilwaIoyL0+kUaFGX4H1ZKzfqMJsACoV3h1S4Pe5APPuLOJB0ae+AisFfh+NMe+NAB8UsVKgHA5HufcnQqmQlwLlcDwesi+QJFJh7YwC5TAgwb88CDc+yEyBchiR4d+dolDjg1XLrf8wK8u/RRk1M3G7shsgg+yPAo0PclNgLwKyPwlEhTW/AwyjsoA9wjZU+LE7xk6B8mdYGrFDTgGosAH8zGFcHrFCCzA+yE+B8neXDGKZPnFm4rWvAKBA+btQCrFFjn3PBIAC/+8RgWxTZ56ZOD0QDvBzbQ6ySZM4M/HcV2Cbh3hOhHEvarDOTNzPCP3V7/150C5RxpmJBvMLhfX1eT0qZBsfvCEocHR9HrROl218EEOBo01CoGd1iDMTf30FCAWOIAAGAmQqrIAIKMeLhEDvqlDHB/trcV/V7YFRf7xGB7VRl0qF8vJoHxfQ9x8vlUxRMUBbuSQZ7sW9+XHCcpkamgpREb9Igti98sSZCaBMV0qi3pejrlwCSma3UtNYiNsH3UQA9G0F2uVaRxGAfFyBNjMBE+HujbmWSIXoLAj9uoCXVKheXxjAxYDykQqFwydmPKTC2YdmcE/NEmcm8EkAHAavvlFhXLh9ZMVmfBDqAvMvbyKf2THujlVIIlh4eBOYDZpTYYWEwaW3toBMaEyFJ2A2GAv3j60RnyZx4wDQ19YMqfCEhACxzpOrjS/VwJsHF1Pkg3smVHhH1oPZSq/uGhwUQdOgt4+uIl3AYGYCmgWJ1R5e1qbCVXIAB09va1MhkgJjseLj65pUCKXAj4+vQysCvYMiJAUuVAGuXt7UKgmgLdEs/WgAZF9AhwqhFDj71KbThPgzFa5IgW6o8LRiNzAKtQyAxMGPMxPIfrAGAkJnhn6o8L7aiYAOAjoIgsbDKtBpELyjQiQFagcAPAiWSwJoEaAfAOggWC4J1umDLQRBAsTBk/siIMkDQwGWhUtUWAMRUJjqjywLF6gQSYFlaGyAoADCwOzMRAtkwCKwEBwMzFIhkALNAQAOA69UCKTAWNjpD8wGZrpjQAo0ywAcAeEzFQIp0AYAHQBh46oIsANAfHtoelCEOwpKSPojqaDFrUdiIAA8FUyoEEaB1gTgwgJ/VAijwFikdAOkGcYCIypEUWCcMegPtMAvFaIokEl/YELUDhY4oYoALv27hAh0s1I+6vu9foAawVkYBHwWQOHA5YJKgTn1B+IA6lpczOf/WAugCkBu/fvpmQ1ZgIX/XzOiZCv6JxD9oZ1iz/L/NdqEvtS/HyxQ+q9/CdQflxAwwn8YQCX1GwpR8DeBQo+BIMoDB1KUnoZBjA3/ERD4GQaJCANX4mMYuHF/b9kAjv4vbOCXE0R5GrgWj5zA+ef3zAnW+Pwe0YFL8PcwJ3DG/ctxsKoJytW8fxwHq0FBtKr3r20C5Yv6K5nAJ/U7JAgKtybwS/3/XuAIDmMf1R9MkJcO8oKkzP1UfwiFIgNHQpQVaeCzpKHAuUFSijDwX9ICggZd5Hv+8cdo0IUCqw2SKMvDYFPS+QFXLHSeX2xM+yE1SDsbkB0hjrINef4cJvZGSKysECe98uGGtf8zQp6VRlbodC+zfA/KT6wgejMk8RtDxHHSqy72pfvEDIMdOkP0lhh/8STqFB80d6z6P8jI7Pw4mkpqAAAAAElFTkSuQmCC"
+sources:
+  - https://github.com/viafoura/livecomments
+maintainers:
+  - name: Platform Team
+    email: platform@viafoura.com
+dependencies: []
+annotations:
+  category: Application
+  licenses: Apache-2.0
+  enterprise.viafoura.com/security-level: "restricted"
+  enterprise.viafoura.com/compliance: "pod-security-standards,cis-kubernetes,nist-cybersecurity"
+  enterprise.viafoura.com/features: "networkpolicy,backup-automation,disaster-recovery,rbac,monitoring"
+  enterprise.viafoura.com/maturity: "production-ready"
+  viafoura.com/team: "platform-engineering"
+  viafoura.com/support: "enterprise"

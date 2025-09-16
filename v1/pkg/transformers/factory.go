@@ -21,10 +21,10 @@ func NewTransformerFactory(cfg *config.Config) *TransformerFactory {
 		config:   cfg,
 		log:      logger.WithName("transformer-factory"),
 	}
-	
+
 	// Register built-in transformers
 	factory.registerBuiltinTransformers()
-	
+
 	return factory
 }
 
@@ -46,7 +46,7 @@ func (f *TransformerFactory) registerBuiltinTransformers() {
 			f.log.Error(err, "Failed to register camelCase transformer")
 		}
 	}
-	
+
 	// Register key normalizer if patterns are configured
 	if f.config != nil && f.config.Globals.Mappings != nil {
 		patterns := f.extractKeyPatterns(f.config.Globals.Mappings)
@@ -57,7 +57,7 @@ func (f *TransformerFactory) registerBuiltinTransformers() {
 			}
 		}
 	}
-	
+
 	// Register value defaults transformer
 	defaults := f.extractDefaults()
 	if len(defaults) > 0 {
@@ -66,7 +66,7 @@ func (f *TransformerFactory) registerBuiltinTransformers() {
 			f.log.Error(err, "Failed to register defaults transformer")
 		}
 	}
-	
+
 	// Register path remap transformer
 	mappings := f.extractPathMappings()
 	if len(mappings) > 0 {
@@ -75,7 +75,7 @@ func (f *TransformerFactory) registerBuiltinTransformers() {
 			f.log.Error(err, "Failed to register path remapper")
 		}
 	}
-	
+
 	f.log.InfoS("Registered built-in transformers", "count", f.registry.Count())
 }
 
@@ -100,7 +100,7 @@ func (f *TransformerFactory) createCamelCaseTransformer(config map[string]interf
 	skipJava := false
 	skipUpper := false
 	minUpper := 3
-	
+
 	if v, ok := config["skipJavaProperties"].(bool); ok {
 		skipJava = v
 	}
@@ -110,14 +110,14 @@ func (f *TransformerFactory) createCamelCaseTransformer(config map[string]interf
 	if v, ok := config["minUppercaseChars"].(int); ok {
 		minUpper = v
 	}
-	
+
 	return NewCamelCaseTransformer(skipJava, skipUpper, minUpper), nil
 }
 
 // createKeyNormalizer creates a configured key normalizer
 func (f *TransformerFactory) createKeyNormalizer(config map[string]interface{}) (Transformer, error) {
 	patterns := make(map[string]string)
-	
+
 	if patternsConfig, ok := config["patterns"].(map[string]interface{}); ok {
 		for old, new := range patternsConfig {
 			if newStr, ok := new.(string); ok {
@@ -125,11 +125,11 @@ func (f *TransformerFactory) createKeyNormalizer(config map[string]interface{}) 
 			}
 		}
 	}
-	
+
 	if len(patterns) == 0 {
 		return nil, fmt.Errorf("key normalizer requires patterns configuration")
 	}
-	
+
 	return NewKeyNormalizerTransformer(patterns), nil
 }
 
@@ -139,14 +139,14 @@ func (f *TransformerFactory) createValueDefaults(config map[string]interface{}) 
 	if !ok || len(defaults) == 0 {
 		return nil, fmt.Errorf("value defaults transformer requires defaults configuration")
 	}
-	
+
 	return NewValueDefaultsTransformer(defaults), nil
 }
 
 // createPathRemap creates a configured path remap transformer
 func (f *TransformerFactory) createPathRemap(config map[string]interface{}) (Transformer, error) {
 	mappings := make(map[string]string)
-	
+
 	if mappingsConfig, ok := config["mappings"].(map[string]interface{}); ok {
 		for source, target := range mappingsConfig {
 			if targetStr, ok := target.(string); ok {
@@ -154,11 +154,11 @@ func (f *TransformerFactory) createPathRemap(config map[string]interface{}) (Tra
 			}
 		}
 	}
-	
+
 	if len(mappings) == 0 {
 		return nil, fmt.Errorf("path remap transformer requires mappings configuration")
 	}
-	
+
 	return NewPathRemapTransformer(mappings), nil
 }
 
@@ -175,18 +175,18 @@ func (f *TransformerFactory) LoadFromConfig(transformerConfigs []map[string]inte
 			f.log.Error(nil, "Transformer configuration missing name")
 			continue
 		}
-		
+
 		transformer, err := f.CreateTransformer(name, tConfig)
 		if err != nil {
 			f.log.Error(err, "Failed to create transformer", "name", name)
 			continue
 		}
-		
+
 		if err := f.registry.Register(transformer); err != nil {
 			f.log.Error(err, "Failed to register transformer", "name", name)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -194,11 +194,11 @@ func (f *TransformerFactory) LoadFromConfig(transformerConfigs []map[string]inte
 
 func (f *TransformerFactory) extractKeyPatterns(mappings *config.Mappings) map[string]string {
 	patterns := make(map[string]string)
-	
+
 	if mappings == nil || mappings.Normalizer == nil {
 		return patterns
 	}
-	
+
 	// Extract patterns from normalizer configuration
 	if mappings.Normalizer.Patterns != nil {
 		for oldPattern, newPattern := range mappings.Normalizer.Patterns {
@@ -207,13 +207,13 @@ func (f *TransformerFactory) extractKeyPatterns(mappings *config.Mappings) map[s
 			}
 		}
 	}
-	
+
 	return patterns
 }
 
 func (f *TransformerFactory) extractDefaults() map[string]interface{} {
 	defaults := make(map[string]interface{})
-	
+
 	// Extract default values from configuration
 	// This would come from a defaults section in the config
 	// For now, return some common defaults
@@ -225,17 +225,17 @@ func (f *TransformerFactory) extractDefaults() map[string]interface{} {
 		"type": "ClusterIP",
 		"port": 80,
 	}
-	
+
 	return defaults
 }
 
 func (f *TransformerFactory) extractPathMappings() map[string]string {
 	mappings := make(map[string]string)
-	
+
 	// Extract path mappings from configuration
 	// This would come from a mappings section in the config
 	// For example, moving deprecated paths to new locations
-	
+
 	return mappings
 }
 
@@ -246,23 +246,23 @@ func (f *TransformerFactory) ApplyServiceTransformers(serviceName string, data i
 		// Use default transformers
 		return f.registry.ApplyAll(data)
 	}
-	
+
 	service, exists := f.config.Services[serviceName]
 	if !exists || !service.Enabled {
 		// Use default transformers
 		return f.registry.ApplyAll(data)
 	}
-	
+
 	// Apply service-specific transformers
 	// This could be extended to support service-specific transformer chains
 	result := data
 	var err error
-	
+
 	// Apply transformers in priority order
 	for _, name := range f.registry.ListByPriority() {
 		result, err = f.registry.Apply(name, result)
 		if err != nil {
-			f.log.V(3).InfoS("Transformer skipped", 
+			f.log.V(3).InfoS("Transformer skipped",
 				"service", serviceName,
 				"transformer", name,
 				"error", err)
@@ -270,10 +270,10 @@ func (f *TransformerFactory) ApplyServiceTransformers(serviceName string, data i
 			continue
 		}
 	}
-	
-	f.log.InfoS("Applied service transformers", 
+
+	f.log.InfoS("Applied service transformers",
 		"service", serviceName,
 		"transformerCount", f.registry.Count())
-	
+
 	return result, nil
 }

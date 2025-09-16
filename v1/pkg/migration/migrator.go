@@ -13,6 +13,7 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 
 	"helm-charts-migrator/v1/pkg/adapters"
+	"helm-charts-migrator/v1/pkg/common"
 	"helm-charts-migrator/v1/pkg/config"
 	"helm-charts-migrator/v1/pkg/logger"
 	"helm-charts-migrator/v1/pkg/services"
@@ -31,8 +32,7 @@ type Migrator struct {
 	extractor   adapters.ValuesExtractor
 	pipeline    *adapters.TransformationPipeline
 	log         *logger.NamedLogger
-	dryRun      bool
-	noSOPS      bool
+	opts        *common.MigratorOptions
 }
 
 // NewMigrator creates a new Migrator with all dependencies injected
@@ -44,8 +44,7 @@ func NewMigrator(
 	transform services.TransformationService,
 	cache services.CacheService,
 	sops services.SOPSService,
-	dryRun bool,
-	noSOPS bool,
+	opts *common.MigratorOptions,
 ) *Migrator {
 	// Create adapter components
 	chartCopier := adapters.NewChartCopier(cfg, file)
@@ -64,14 +63,13 @@ func NewMigrator(
 		extractor:   extractor,
 		pipeline:    pipeline,
 		log:         logger.WithName("migrator"),
-		dryRun:      dryRun,
-		noSOPS:      noSOPS,
+		opts:        opts,
 	}
 }
 
 // MigrateServices migrates multiple services across clusters
 func (m *Migrator) MigrateServices(ctx context.Context, services []string, clusters []ClusterInfo) error {
-	if m.dryRun {
+	if m.opts.DryRun {
 		m.log.InfoS("DRY RUN mode - no changes will be made")
 	}
 
@@ -127,7 +125,7 @@ func (m *Migrator) MigrateService(ctx context.Context, serviceName string, clust
 	}
 
 	// Step 4: Encrypt secrets if not disabled
-	if !m.noSOPS && !m.dryRun {
+	if !m.opts.NoSOPS && !m.opts.DryRun {
 		if err := m.encryptServiceSecrets(serviceName); err != nil {
 			m.log.Error(err, "Failed to encrypt secrets", "service", serviceName)
 		}
@@ -181,7 +179,7 @@ func (m *Migrator) processNamespace(ctx context.Context, serviceName string, clu
 		ForEnvironment(ns.Environment, ns.Name)
 	outputPath := paths.NamespaceDir()
 
-	if m.dryRun {
+	if m.opts.DryRun {
 		m.log.InfoS("DRY RUN: Would save values", "path", outputPath)
 		return nil
 	}
@@ -254,7 +252,7 @@ func (m *Migrator) getReleases(ctx context.Context, cluster ClusterInfo) ([]*rel
 
 // copyBaseChart copies the base chart template for the service
 func (m *Migrator) copyBaseChart(serviceName string, serviceConfig *config.Service) error {
-	if m.dryRun {
+	if m.opts.DryRun {
 		m.log.InfoS("DRY RUN: Would copy base chart", "service", serviceName)
 		return nil
 	}

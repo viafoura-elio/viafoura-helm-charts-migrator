@@ -47,3 +47,10 @@ Resources:
   requests:
     cpu: 500m
     memory: 1Gi
+Secrets:
+  application.conf:
+    auth.client_secret: UsTL#!OaLrzUNQSBsid13bxhoGFDl4
+    livechat.service.jwt.secret1: acpeK%KVC%^19qQP2T8PsjS&osiTD9JREA6KP%ka1s9VLiM#qRM%1zUsIt@hDW^Q
+    livechat.service.jwt.secret2: h!Z6ny!2P1FNchwSBdfI7H&n370kO8Xv3%YYbJxZ73DOXu$!mPkHmq@22radZtY#
+    livechat.service.mysql.password: TztwgZrvsEQOQmej4TAEVnTsltmY4C19
+    livechat.service.mysql.ro.password: TztwgZrvsEQOQmej4TAEVnTsltmY4C19

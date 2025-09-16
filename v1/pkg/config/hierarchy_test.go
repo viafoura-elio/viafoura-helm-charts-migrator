@@ -66,7 +66,7 @@ func TestConfigLayer_Clone(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cloned := tt.layer.Clone()
 			assert.Equal(t, tt.expected, cloned)
-			
+
 			// Verify deep copy by modifying original
 			if tt.layer != nil && tt.layer.Values != nil {
 				if nested, ok := tt.layer.Values["level1"].(map[string]interface{}); ok {
@@ -169,10 +169,10 @@ func TestHierarchicalConfig_GetEffectiveConfig(t *testing.T) {
 
 	// Test effective config
 	tests := []struct {
-		name      string
-		cluster   string
-		service   string
-		validate  func(t *testing.T, cfg *ConfigLayer)
+		name     string
+		cluster  string
+		service  string
+		validate func(t *testing.T, cfg *ConfigLayer)
 	}{
 		{
 			name:    "cluster and service override",
@@ -181,18 +181,18 @@ func TestHierarchicalConfig_GetEffectiveConfig(t *testing.T) {
 			validate: func(t *testing.T, cfg *ConfigLayer) {
 				require.NotNil(t, cfg)
 				require.NotNil(t, cfg.Values)
-				
+
 				// Check globals
 				globals := cfg.Values["globals"].(map[string]interface{})
 				converter := globals["converter"].(map[string]interface{})
 				assert.Equal(t, 5, converter["minUppercaseChars"])
 				assert.True(t, converter["skipJavaProperties"].(bool))
-				
+
 				performance := globals["performance"].(map[string]interface{})
 				assert.Equal(t, 20, performance["maxConcurrentServices"])
-				
+
 				assert.Equal(t, "prod01", cfg.Values["cluster"])
-				
+
 				// Check services
 				services := cfg.Values["services"].(map[string]interface{})
 				heimdall := services["heimdall"].(map[string]interface{})
@@ -207,16 +207,16 @@ func TestHierarchicalConfig_GetEffectiveConfig(t *testing.T) {
 			validate: func(t *testing.T, cfg *ConfigLayer) {
 				require.NotNil(t, cfg)
 				require.NotNil(t, cfg.Values)
-				
+
 				// Should use global values since dev01 doesn't override performance
 				globals := cfg.Values["globals"].(map[string]interface{})
 				converter := globals["converter"].(map[string]interface{})
 				assert.Equal(t, 5, converter["minUppercaseChars"])
 				assert.True(t, converter["skipJavaProperties"].(bool))
-				
+
 				performance := globals["performance"].(map[string]interface{})
 				assert.Equal(t, 10, performance["maxConcurrentServices"])
-				
+
 				// Check cluster values
 				assert.Equal(t, "dev01", cfg.Values["cluster"])
 				assert.Equal(t, "kops-dev", cfg.Values["source"])
@@ -230,13 +230,13 @@ func TestHierarchicalConfig_GetEffectiveConfig(t *testing.T) {
 			validate: func(t *testing.T, cfg *ConfigLayer) {
 				require.NotNil(t, cfg)
 				require.NotNil(t, cfg.Values)
-				
+
 				// Check service values
 				services := cfg.Values["services"].(map[string]interface{})
 				heimdall := services["heimdall"].(map[string]interface{})
 				assert.True(t, heimdall["enabled"].(bool))
 				assert.Equal(t, "Heimdall", heimdall["capitalized"])
-				
+
 				// Service may have its own converter override
 				if heimdallConverter, ok := heimdall["converter"].(map[string]interface{}); ok {
 					if minChars, ok := heimdallConverter["minUppercaseChars"].(int); ok {

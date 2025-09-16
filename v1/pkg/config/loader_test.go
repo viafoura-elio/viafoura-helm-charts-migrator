@@ -285,7 +285,7 @@ func TestConfigLoader_LoadFromCluster(t *testing.T) {
 	// For now, just test that it doesn't panic with invalid context
 	loader := NewConfigLoader()
 	cfg, err := loader.LoadFromCluster("non-existent-context")
-	
+
 	// Should return error for non-existent context
 	assert.Error(t, err)
 	assert.Nil(t, cfg)

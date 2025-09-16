@@ -27,7 +27,7 @@ func TestValidateCommand(t *testing.T) {
 				chartDir := filepath.Join(tmpDir, "test-chart")
 				err := os.MkdirAll(filepath.Join(chartDir, "templates"), 0755)
 				require.NoError(t, err)
-				
+
 				// Chart.yaml
 				chartContent := `apiVersion: v2
 name: test-chart
@@ -35,7 +35,7 @@ description: A test chart
 version: 1.0.0`
 				err = os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte(chartContent), 0644)
 				require.NoError(t, err)
-				
+
 				// values.yaml
 				valuesContent := `replicaCount: 1
 image:
@@ -43,7 +43,7 @@ image:
   tag: latest`
 				err = os.WriteFile(filepath.Join(chartDir, "values.yaml"), []byte(valuesContent), 0644)
 				require.NoError(t, err)
-				
+
 				// Valid deployment template
 				deploymentContent := `apiVersion: apps/v1
 kind: Deployment
@@ -83,19 +83,19 @@ spec:
 				chartDir := filepath.Join(tmpDir, "test-chart")
 				err := os.MkdirAll(filepath.Join(chartDir, "templates"), 0755)
 				require.NoError(t, err)
-				
+
 				chartContent := `apiVersion: v2
 name: test-chart
 version: 1.0.0`
 				err = os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte(chartContent), 0644)
 				require.NoError(t, err)
-				
+
 				// Custom values
 				customValues := `replicaCount: 3
 customValue: test`
 				err = os.WriteFile(filepath.Join(tmpDir, "custom-values.yaml"), []byte(customValues), 0644)
 				require.NoError(t, err)
-				
+
 				// Template using custom values
 				templateContent := `apiVersion: v1
 kind: ConfigMap
@@ -123,13 +123,13 @@ data:
 				chartDir := filepath.Join(tmpDir, "test-chart")
 				err := os.MkdirAll(filepath.Join(chartDir, "templates"), 0755)
 				require.NoError(t, err)
-				
+
 				chartContent := `apiVersion: v2
 name: test-chart
 version: 1.0.0`
 				err = os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte(chartContent), 0644)
 				require.NoError(t, err)
-				
+
 				// Template with deprecated API version
 				templateContent := `apiVersion: extensions/v1beta1
 kind: Ingress
@@ -149,7 +149,7 @@ spec:
 			},
 			wantErr: true, // Should fail in strict mode with deprecated API
 			validate: func(t *testing.T, output string) {
-				assert.Contains(t, output, "deprecated") 
+				assert.Contains(t, output, "deprecated")
 			},
 		},
 		{
@@ -171,12 +171,12 @@ services:
     name: heimdall`
 				err := os.WriteFile(filepath.Join(tmpDir, "config.yaml"), []byte(configContent), 0644)
 				require.NoError(t, err)
-				
+
 				// Create service chart
 				serviceDir := filepath.Join(tmpDir, "apps", "heimdall")
 				err = os.MkdirAll(filepath.Join(serviceDir, "templates"), 0755)
 				require.NoError(t, err)
-				
+
 				chartContent := `apiVersion: v2
 name: heimdall
 version: 1.0.0`
@@ -205,14 +205,14 @@ version: 1.0.0`
 				chartDir := filepath.Join(tmpDir, "test-chart")
 				err := os.MkdirAll(filepath.Join(chartDir, "templates"), 0755)
 				require.NoError(t, err)
-				
+
 				chartContent := `apiVersion: v2
 name: test-chart
 version: 1.0.0
 kubeVersion: ">=1.20.0"`
 				err = os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte(chartContent), 0644)
 				require.NoError(t, err)
-				
+
 				// Template with version-specific features
 				templateContent := `apiVersion: v1
 kind: Service
@@ -240,28 +240,28 @@ spec:
 			defer os.Chdir(oldWd)
 			err := os.Chdir(tmpDir)
 			require.NoError(t, err)
-			
+
 			// Setup test environment
 			if tt.setupFunc != nil {
 				tt.setupFunc(t, tmpDir)
 			}
-			
+
 			// Create command
 			cmd := &cobra.Command{Use: "test"}
 			cmd.AddCommand(validateCmd)
-			
+
 			// Capture output
 			var buf bytes.Buffer
 			cmd.SetOut(&buf)
 			cmd.SetErr(&buf)
-			
+
 			// Set args
 			args := append([]string{"validate"}, tt.args...)
 			cmd.SetArgs(args)
-			
+
 			// Execute
 			err = cmd.Execute()
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -272,7 +272,7 @@ spec:
 				}
 				assert.NoError(t, err)
 			}
-			
+
 			// Validate output
 			if tt.validate != nil {
 				tt.validate(t, buf.String())
@@ -287,7 +287,7 @@ func TestValidateCommand_Flags(t *testing.T) {
 		t.Skip("validate command not implemented")
 		return
 	}
-	
+
 	// Test that expected flags are registered
 	expectedFlags := []string{
 		"chart",
@@ -298,7 +298,7 @@ func TestValidateCommand_Flags(t *testing.T) {
 		"kubernetes-version",
 		"output",
 	}
-	
+
 	for _, flagName := range expectedFlags {
 		flag := validateCmd.Flag(flagName)
 		assert.NotNil(t, flag, "Flag %s should be registered", flagName)
@@ -310,39 +310,39 @@ func TestValidateCommand_MultipleCharts(t *testing.T) {
 		t.Skip("validate command not implemented")
 		return
 	}
-	
+
 	tmpDir := t.TempDir()
-	
+
 	// Create multiple charts
 	charts := []string{"chart1", "chart2", "chart3"}
 	for _, chartName := range charts {
 		chartDir := filepath.Join(tmpDir, chartName)
 		err := os.MkdirAll(filepath.Join(chartDir, "templates"), 0755)
 		require.NoError(t, err)
-		
+
 		chartContent := `apiVersion: v2
 name: ` + chartName + `
 version: 1.0.0`
 		err = os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte(chartContent), 0644)
 		require.NoError(t, err)
 	}
-	
+
 	oldWd, _ := os.Getwd()
 	defer os.Chdir(oldWd)
 	err := os.Chdir(tmpDir)
 	require.NoError(t, err)
-	
+
 	// Validate all charts
 	for _, chartName := range charts {
 		cmd := &cobra.Command{Use: "test"}
 		cmd.AddCommand(validateCmd)
-		
+
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
 		cmd.SetErr(&buf)
-		
+
 		cmd.SetArgs([]string{"validate", "--chart", chartName})
-		
+
 		err := cmd.Execute()
 		assert.NoError(t, err, "Failed to validate %s", chartName)
 		assert.Contains(t, buf.String(), chartName)

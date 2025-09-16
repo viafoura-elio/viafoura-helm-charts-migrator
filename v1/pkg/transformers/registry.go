@@ -11,16 +11,16 @@ import (
 type Transformer interface {
 	// Name returns the unique name of the transformer
 	Name() string
-	
+
 	// Description returns a human-readable description
 	Description() string
-	
+
 	// Transform applies the transformation to the input data
 	Transform(data interface{}) (interface{}, error)
-	
+
 	// Validate checks if this transformer can handle the input
 	Validate(data interface{}) error
-	
+
 	// Priority returns the execution priority (lower numbers run first)
 	Priority() int
 }
@@ -46,24 +46,24 @@ func NewTransformerRegistry() *TransformerRegistry {
 func (r *TransformerRegistry) Register(transformer Transformer) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	name := transformer.Name()
 	if name == "" {
 		return fmt.Errorf("transformer name cannot be empty")
 	}
-	
+
 	if _, exists := r.transformers[name]; exists {
 		return fmt.Errorf("transformer %s already registered", name)
 	}
-	
+
 	r.transformers[name] = transformer
 	r.order = append(r.order, name)
-	
-	r.log.InfoS("Registered transformer", 
+
+	r.log.InfoS("Registered transformer",
 		"name", name,
 		"description", transformer.Description(),
 		"priority", transformer.Priority())
-	
+
 	return nil
 }
 
@@ -71,13 +71,13 @@ func (r *TransformerRegistry) Register(transformer Transformer) error {
 func (r *TransformerRegistry) Unregister(name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	if _, exists := r.transformers[name]; !exists {
 		return fmt.Errorf("transformer %s not found", name)
 	}
-	
+
 	delete(r.transformers, name)
-	
+
 	// Remove from order slice
 	newOrder := []string{}
 	for _, n := range r.order {
@@ -86,7 +86,7 @@ func (r *TransformerRegistry) Unregister(name string) error {
 		}
 	}
 	r.order = newOrder
-	
+
 	r.log.InfoS("Unregistered transformer", "name", name)
 	return nil
 }
@@ -95,12 +95,12 @@ func (r *TransformerRegistry) Unregister(name string) error {
 func (r *TransformerRegistry) Get(name string) (Transformer, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	transformer, exists := r.transformers[name]
 	if !exists {
 		return nil, fmt.Errorf("transformer %s not found", name)
 	}
-	
+
 	return transformer, nil
 }
 
@@ -108,7 +108,7 @@ func (r *TransformerRegistry) Get(name string) (Transformer, error) {
 func (r *TransformerRegistry) List() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	names := make([]string, len(r.order))
 	copy(names, r.order)
 	return names
@@ -118,13 +118,13 @@ func (r *TransformerRegistry) List() []string {
 func (r *TransformerRegistry) ListByPriority() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	// Create a slice of transformers with their names
 	type transformerInfo struct {
 		name     string
 		priority int
 	}
-	
+
 	infos := make([]transformerInfo, 0, len(r.transformers))
 	for name, t := range r.transformers {
 		infos = append(infos, transformerInfo{
@@ -132,7 +132,7 @@ func (r *TransformerRegistry) ListByPriority() []string {
 			priority: t.Priority(),
 		})
 	}
-	
+
 	// Sort by priority (bubble sort for simplicity)
 	for i := 0; i < len(infos); i++ {
 		for j := i + 1; j < len(infos); j++ {
@@ -141,13 +141,13 @@ func (r *TransformerRegistry) ListByPriority() []string {
 			}
 		}
 	}
-	
+
 	// Extract names
 	names := make([]string, len(infos))
 	for i, info := range infos {
 		names[i] = info.name
 	}
-	
+
 	return names
 }
 
@@ -157,18 +157,18 @@ func (r *TransformerRegistry) Apply(name string, data interface{}) (interface{},
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Validate input
 	if err := transformer.Validate(data); err != nil {
 		return nil, fmt.Errorf("validation failed for transformer %s: %w", name, err)
 	}
-	
+
 	// Apply transformation
 	result, err := transformer.Transform(data)
 	if err != nil {
 		return nil, fmt.Errorf("transformation %s failed: %w", name, err)
 	}
-	
+
 	r.log.V(3).InfoS("Applied transformer", "name", name)
 	return result, nil
 }
@@ -176,7 +176,7 @@ func (r *TransformerRegistry) Apply(name string, data interface{}) (interface{},
 // ApplyChain runs multiple transformers in sequence
 func (r *TransformerRegistry) ApplyChain(names []string, data interface{}) (interface{}, error) {
 	result := data
-	
+
 	for _, name := range names {
 		transformed, err := r.Apply(name, result)
 		if err != nil {
@@ -184,7 +184,7 @@ func (r *TransformerRegistry) ApplyChain(names []string, data interface{}) (inte
 		}
 		result = transformed
 	}
-	
+
 	r.log.V(2).InfoS("Applied transformer chain", "count", len(names))
 	return result, nil
 }
@@ -199,37 +199,37 @@ func (r *TransformerRegistry) ApplyAll(data interface{}) (interface{}, error) {
 func (r *TransformerRegistry) ApplyConditional(data interface{}, condition func(Transformer) bool) (interface{}, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	result := data
 	applied := 0
-	
+
 	// Get transformers in priority order
 	for _, name := range r.ListByPriority() {
 		transformer := r.transformers[name]
-		
+
 		// Check condition
 		if !condition(transformer) {
 			continue
 		}
-		
+
 		// Validate
 		if err := transformer.Validate(result); err != nil {
-			r.log.V(3).InfoS("Skipping transformer due to validation", 
-				"name", name, 
+			r.log.V(3).InfoS("Skipping transformer due to validation",
+				"name", name,
 				"error", err)
 			continue
 		}
-		
+
 		// Transform
 		transformed, err := transformer.Transform(result)
 		if err != nil {
 			return nil, fmt.Errorf("conditional transformation %s failed: %w", name, err)
 		}
-		
+
 		result = transformed
 		applied++
 	}
-	
+
 	r.log.V(2).InfoS("Applied conditional transformers", "applied", applied)
 	return result, nil
 }
@@ -238,10 +238,10 @@ func (r *TransformerRegistry) ApplyConditional(data interface{}, condition func(
 func (r *TransformerRegistry) Clear() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	r.transformers = make(map[string]Transformer)
 	r.order = []string{}
-	
+
 	r.log.InfoS("Cleared all transformers")
 }
 
@@ -249,7 +249,7 @@ func (r *TransformerRegistry) Clear() {
 func (r *TransformerRegistry) Count() int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	return len(r.transformers)
 }
 
@@ -257,7 +257,7 @@ func (r *TransformerRegistry) Count() int {
 func (r *TransformerRegistry) GetInfo() []TransformerInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	infos := make([]TransformerInfo, 0, len(r.transformers))
 	for _, name := range r.order {
 		t := r.transformers[name]
@@ -267,7 +267,7 @@ func (r *TransformerRegistry) GetInfo() []TransformerInfo {
 			Priority:    t.Priority(),
 		})
 	}
-	
+
 	return infos
 }
 

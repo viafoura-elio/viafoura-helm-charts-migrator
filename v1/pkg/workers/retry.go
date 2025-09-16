@@ -12,12 +12,12 @@ import (
 
 // RetryPolicy defines retry behavior
 type RetryPolicy struct {
-	MaxAttempts      int           `yaml:"max_attempts" json:"max_attempts"`
-	InitialBackoff   time.Duration `yaml:"initial_backoff" json:"initial_backoff"`
-	MaxBackoff       time.Duration `yaml:"max_backoff" json:"max_backoff"`
+	MaxAttempts       int           `yaml:"max_attempts" json:"max_attempts"`
+	InitialBackoff    time.Duration `yaml:"initial_backoff" json:"initial_backoff"`
+	MaxBackoff        time.Duration `yaml:"max_backoff" json:"max_backoff"`
 	BackoffMultiplier float64       `yaml:"backoff_multiplier" json:"backoff_multiplier"`
-	JitterPercent    float64       `yaml:"jitter_percent" json:"jitter_percent"`
-	RetryableErrors  []string      `yaml:"retryable_errors" json:"retryable_errors"`
+	JitterPercent     float64       `yaml:"jitter_percent" json:"jitter_percent"`
+	RetryableErrors   []string      `yaml:"retryable_errors" json:"retryable_errors"`
 }
 
 // DefaultRetryPolicy returns a sensible default retry policy
@@ -30,7 +30,7 @@ func DefaultRetryPolicy() RetryPolicy {
 		JitterPercent:     0.1,
 		RetryableErrors: []string{
 			"*net.OpError",
-			"*url.Error", 
+			"*url.Error",
 			"*errors.timeout",
 			"context deadline exceeded",
 			"connection refused",
@@ -82,20 +82,20 @@ func (rt *RetryableTask) Priority() int {
 func (rt *RetryableTask) Execute(ctx context.Context) error {
 	// Check if we've exceeded max attempts
 	if rt.attempt >= rt.Policy.MaxAttempts {
-		return fmt.Errorf("task %s failed after %d attempts: %w", 
+		return fmt.Errorf("task %s failed after %d attempts: %w",
 			rt.Task.ID(), rt.attempt, rt.lastError)
 	}
-	
+
 	rt.attempt++
-	
-	rt.log.V(3).InfoS("Executing task", 
+
+	rt.log.V(3).InfoS("Executing task",
 		"taskID", rt.Task.ID(),
 		"attempt", rt.attempt,
 		"maxAttempts", rt.Policy.MaxAttempts)
-	
+
 	// Execute the underlying task
 	err := rt.Task.Execute(ctx)
-	
+
 	// If successful or not retryable, return immediately
 	if err == nil {
 		if rt.attempt > 1 {
@@ -106,9 +106,9 @@ func (rt *RetryableTask) Execute(ctx context.Context) error {
 		}
 		return nil
 	}
-	
+
 	rt.lastError = err
-	
+
 	// Check if error is retryable
 	if !rt.isRetryableError(err) {
 		rt.log.V(2).InfoS("Task failed with non-retryable error",
@@ -117,7 +117,7 @@ func (rt *RetryableTask) Execute(ctx context.Context) error {
 			"error", err)
 		return err
 	}
-	
+
 	// Check if we have more attempts
 	if rt.attempt >= rt.Policy.MaxAttempts {
 		rt.log.InfoS("Task failed after all retry attempts",
@@ -126,18 +126,18 @@ func (rt *RetryableTask) Execute(ctx context.Context) error {
 			"finalError", err)
 		return fmt.Errorf("task failed after %d attempts: %w", rt.attempt, err)
 	}
-	
+
 	// Calculate backoff delay
 	backoff := rt.calculateBackoff()
 	rt.totalBackoff += backoff
-	
+
 	rt.log.InfoS("Task failed, will retry",
 		"taskID", rt.Task.ID(),
 		"attempt", rt.attempt,
 		"nextAttempt", rt.attempt+1,
 		"backoff", backoff,
 		"error", err)
-	
+
 	// Wait for backoff period (unless context is cancelled)
 	select {
 	case <-ctx.Done():
@@ -145,7 +145,7 @@ func (rt *RetryableTask) Execute(ctx context.Context) error {
 	case <-time.After(backoff):
 		// Continue to next attempt
 	}
-	
+
 	// Return special error to indicate retry needed
 	return &RetryNeededError{
 		OriginalError: err,
@@ -159,10 +159,10 @@ func (rt *RetryableTask) isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	errorStr := err.Error()
 	errorType := fmt.Sprintf("%T", err)
-	
+
 	// Check against configured retryable errors
 	for _, pattern := range rt.Policy.RetryableErrors {
 		if pattern == errorType {
@@ -175,7 +175,7 @@ func (rt *RetryableTask) isRetryableError(err error) bool {
 			}
 		}
 	}
-	
+
 	// Default retryable conditions
 	return contains(errorStr, "timeout") ||
 		contains(errorStr, "connection refused") ||
@@ -189,15 +189,15 @@ func (rt *RetryableTask) calculateBackoff() time.Duration {
 	if rt.attempt <= 1 {
 		return rt.addJitter(rt.Policy.InitialBackoff)
 	}
-	
+
 	// Exponential backoff: backoff = initialBackoff * multiplier^(attempt-1)
 	backoff := float64(rt.Policy.InitialBackoff) * math.Pow(rt.Policy.BackoffMultiplier, float64(rt.attempt-1))
-	
+
 	// Cap at max backoff
 	if backoff > float64(rt.Policy.MaxBackoff) {
 		backoff = float64(rt.Policy.MaxBackoff)
 	}
-	
+
 	return rt.addJitter(time.Duration(backoff))
 }
 
@@ -206,12 +206,12 @@ func (rt *RetryableTask) addJitter(duration time.Duration) time.Duration {
 	if rt.Policy.JitterPercent <= 0 {
 		return duration
 	}
-	
+
 	jitter := rt.Policy.JitterPercent
 	if jitter > 1.0 {
 		jitter = 1.0
 	}
-	
+
 	// Generate random factor between (1-jitter) and (1+jitter)
 	factor := 1.0 + (rand.Float64()*2-1)*jitter
 	return time.Duration(float64(duration) * factor)
@@ -240,7 +240,7 @@ type RetryNeededError struct {
 }
 
 func (e *RetryNeededError) Error() string {
-	return fmt.Sprintf("retry needed after attempt %d (backoff: %v): %v", 
+	return fmt.Sprintf("retry needed after attempt %d (backoff: %v): %v",
 		e.Attempt, e.NextBackoff, e.OriginalError)
 }
 
@@ -270,7 +270,7 @@ type RetryableWorkerPool struct {
 func NewRetryableWorkerPool(workers int, policy RetryPolicy) *RetryableWorkerPool {
 	basePool := NewWorkerPool(workers)
 	metrics := NewMetrics(workers)
-	
+
 	return &RetryableWorkerPool{
 		WorkerPool:  basePool,
 		retryPolicy: policy,
@@ -283,20 +283,20 @@ func NewRetryableWorkerPool(workers int, policy RetryPolicy) *RetryableWorkerPoo
 // Start starts the retryable worker pool
 func (rwp *RetryableWorkerPool) Start() error {
 	rwp.metrics.Start()
-	
+
 	// Start the base worker pool
 	if err := rwp.WorkerPool.Start(); err != nil {
 		return err
 	}
-	
+
 	// Start retry handler
 	go rwp.retryHandler()
-	
-	rwp.log.InfoS("Retryable worker pool started", 
+
+	rwp.log.InfoS("Retryable worker pool started",
 		"workers", rwp.workers,
 		"maxAttempts", rwp.retryPolicy.MaxAttempts,
 		"initialBackoff", rwp.retryPolicy.InitialBackoff)
-	
+
 	return nil
 }
 
@@ -304,14 +304,14 @@ func (rwp *RetryableWorkerPool) Start() error {
 func (rwp *RetryableWorkerPool) Stop() error {
 	// Close retry queue
 	close(rwp.retryQueue)
-	
+
 	// Stop base pool
 	err := rwp.WorkerPool.Stop()
-	
+
 	// Stop metrics
 	rwp.metrics.Stop()
 	rwp.metrics.LogSummary()
-	
+
 	return err
 }
 
@@ -346,16 +346,16 @@ func (rwp *RetryableWorkerPool) GetMetricsSnapshot() MetricsSnapshot {
 func (rwp *RetryableWorkerPool) retryHandler() {
 	rwp.log.V(3).InfoS("Retry handler started")
 	defer rwp.log.V(3).InfoS("Retry handler stopped")
-	
+
 	for {
 		select {
 		case result, ok := <-rwp.Results():
 			if !ok {
 				return // Channel closed
 			}
-			
+
 			rwp.handleResult(result)
-			
+
 		case <-rwp.ctx.Done():
 			return // Context cancelled
 		}
@@ -369,11 +369,11 @@ func (rwp *RetryableWorkerPool) handleResult(result Result) {
 		rwp.metrics.RecordTaskComplete(result.Duration)
 		return
 	}
-	
+
 	// Check if retry is needed
 	if retryErr, needsRetry := IsRetryNeeded(result.Error); needsRetry {
 		rwp.metrics.RecordTaskRetry(retryErr.Attempt, retryErr.OriginalError)
-		
+
 		// Find the retryable task from result
 		// This would require keeping track of tasks, which is complex
 		// For now, we'll log that a retry is needed
@@ -381,19 +381,19 @@ func (rwp *RetryableWorkerPool) handleResult(result Result) {
 			"taskID", result.TaskID,
 			"attempt", retryErr.Attempt,
 			"nextBackoff", retryErr.NextBackoff)
-		
+
 		// In a real implementation, we'd re-submit the task here
 		// For now, we'll treat it as a failure and let the original task handle retries
 	}
-	
+
 	// Record as failed
 	rwp.metrics.RecordTaskFailed(result.Duration, result.Error)
 }
 
 // Helper function for string contains check
 func contains(s, substr string) bool {
-	return len(substr) > 0 && len(s) >= len(substr) && 
-		(s == substr || (len(s) > len(substr) && 
+	return len(substr) > 0 && len(s) >= len(substr) &&
+		(s == substr || (len(s) > len(substr) &&
 			(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
 				containsInMiddle(s, substr))))
 }

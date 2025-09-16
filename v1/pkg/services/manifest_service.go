@@ -178,7 +178,7 @@ func (m *manifestService) ExtractDeployment(manifest string) (*DeploymentConfig,
 	// Extract container configuration (assuming single container for simplicity)
 	if len(deployment.Spec.Template.Spec.Containers) > 0 {
 		container := deployment.Spec.Template.Spec.Containers[0]
-		
+
 		// Extract image
 		parts := strings.Split(container.Image, ":")
 		if len(parts) == 2 {
@@ -236,15 +236,15 @@ func (m *manifestService) ConvertDatadogAnnotations(annotations map[string]strin
 	for key, value := range annotations {
 		if strings.HasPrefix(key, "ad.datadoghq.com/") {
 			hasDatadog = true
-			
+
 			// Parse annotation key
 			parts := strings.Split(key, "/")
 			if len(parts) < 2 {
 				continue
 			}
-			
+
 			annotationType := parts[1]
-			
+
 			switch {
 			case strings.HasSuffix(annotationType, ".logs"):
 				// Parse logs configuration
@@ -258,7 +258,7 @@ func (m *manifestService) ConvertDatadogAnnotations(annotations map[string]strin
 						config.Logs.Source = source
 					}
 				}
-				
+
 			case strings.HasSuffix(annotationType, ".checks"):
 				// Parse metrics configuration
 				var checksConfig []map[string]interface{}
@@ -348,7 +348,7 @@ func (m *manifestService) ExtractManifestValues(manifest string, serviceName str
 	if deployment.Resources.Limits.CPU != "" || deployment.Resources.Limits.Memory != "" ||
 		deployment.Resources.Requests.CPU != "" || deployment.Resources.Requests.Memory != "" {
 		resources := make(map[string]interface{})
-		
+
 		if deployment.Resources.Limits.CPU != "" || deployment.Resources.Limits.Memory != "" {
 			limits := make(map[string]interface{})
 			if deployment.Resources.Limits.CPU != "" {
@@ -359,7 +359,7 @@ func (m *manifestService) ExtractManifestValues(manifest string, serviceName str
 			}
 			resources["limits"] = limits
 		}
-		
+
 		if deployment.Resources.Requests.CPU != "" || deployment.Resources.Requests.Memory != "" {
 			requests := make(map[string]interface{})
 			if deployment.Resources.Requests.CPU != "" {
@@ -370,7 +370,7 @@ func (m *manifestService) ExtractManifestValues(manifest string, serviceName str
 			}
 			resources["requests"] = requests
 		}
-		
+
 		values["resources"] = resources
 	}
 
@@ -397,7 +397,7 @@ func (m *manifestService) ExtractManifestValues(manifest string, serviceName str
 			"version":     deployment.Datadog.Version,
 			"environment": deployment.Datadog.Environment,
 		}
-		
+
 		if deployment.Datadog.Logs.Enabled {
 			values["datadog"].(map[string]interface{})["logs"] = map[string]interface{}{
 				"enabled": deployment.Datadog.Logs.Enabled,
@@ -405,7 +405,7 @@ func (m *manifestService) ExtractManifestValues(manifest string, serviceName str
 				"source":  deployment.Datadog.Logs.Source,
 			}
 		}
-		
+
 		if deployment.Datadog.Metrics.Enabled {
 			values["datadog"].(map[string]interface{})["metrics"] = map[string]interface{}{
 				"enabled": deployment.Datadog.Metrics.Enabled,
@@ -551,23 +551,23 @@ func (m *manifestService) extractResources(container *v1.Container) ResourceConf
 // extractEnvVars extracts environment variables
 func (m *manifestService) extractEnvVars(envVars []v1.EnvVar) []EnvVar {
 	result := make([]EnvVar, 0, len(envVars))
-	
+
 	for _, env := range envVars {
 		envVar := EnvVar{
 			Name:  env.Name,
 			Value: env.Value,
 		}
-		
+
 		if env.ValueFrom != nil {
 			envVar.ValueFrom = &EnvVarSource{}
-			
+
 			if env.ValueFrom.SecretKeyRef != nil {
 				envVar.ValueFrom.SecretKeyRef = &SecretKeySelector{
 					Name: env.ValueFrom.SecretKeyRef.Name,
 					Key:  env.ValueFrom.SecretKeyRef.Key,
 				}
 			}
-			
+
 			if env.ValueFrom.ConfigMapKeyRef != nil {
 				envVar.ValueFrom.ConfigMapKeyRef = &ConfigMapKeySelector{
 					Name: env.ValueFrom.ConfigMapKeyRef.Name,
@@ -575,9 +575,9 @@ func (m *manifestService) extractEnvVars(envVars []v1.EnvVar) []EnvVar {
 				}
 			}
 		}
-		
+
 		result = append(result, envVar)
 	}
-	
+
 	return result
 }

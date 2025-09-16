@@ -13,11 +13,11 @@ import (
 
 func TestManifestService_ExtractDeployment(t *testing.T) {
 	tests := []struct {
-		name        string
-		manifest    string
-		wantErr     bool
-		errorMsg    string
-		validate    func(t *testing.T, config *DeploymentConfig)
+		name     string
+		manifest string
+		wantErr  bool
+		errorMsg string
+		validate func(t *testing.T, config *DeploymentConfig)
 	}{
 		{
 			name: "valid deployment manifest",
@@ -127,7 +127,7 @@ metadata:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := svc.ExtractDeployment(tt.manifest)
-			
+
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errorMsg != "" {
@@ -135,10 +135,10 @@ metadata:
 				}
 				return
 			}
-			
+
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			
+
 			if tt.validate != nil {
 				tt.validate(t, result)
 			}
@@ -197,12 +197,12 @@ func TestManifestService_ExtractProbes(t *testing.T) {
 				assert.Equal(t, "/health", config.Liveness.HTTPGet.Path)
 				assert.Equal(t, int32(30), config.Liveness.InitialDelaySeconds)
 				assert.Equal(t, int32(5), config.Liveness.TimeoutSeconds)
-				
+
 				// Readiness probe
 				require.NotNil(t, config.Readiness)
 				assert.NotNil(t, config.Readiness.TCPSocket)
 				assert.Equal(t, int32(10), config.Readiness.InitialDelaySeconds)
-				
+
 				// Startup probe
 				require.NotNil(t, config.Startup)
 				assert.NotNil(t, config.Startup.Exec)
@@ -233,15 +233,15 @@ func TestManifestService_ExtractProbes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := svc.ExtractProbes(tt.container)
-			
+
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
-			
+
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			
+
 			if tt.validate != nil {
 				tt.validate(t, result)
 			}
@@ -303,14 +303,14 @@ func TestManifestService_ConvertDatadogAnnotations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := svc.ConvertDatadogAnnotations(tt.annotations)
-			
+
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
-			
+
 			require.NoError(t, err)
-			
+
 			if tt.want == nil {
 				assert.Nil(t, result)
 			} else {
@@ -356,20 +356,20 @@ spec:
 
 	cfg := &config.Config{}
 	svc := NewManifestService(cfg)
-	
+
 	values, err := svc.ExtractManifestValues(manifest, "test-app")
 	require.NoError(t, err)
 	require.NotNil(t, values)
-	
+
 	// Check image values
 	image, ok := values["image"].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "myregistry/test-app", image["repository"])
 	assert.Equal(t, "v1.0.0", image["tag"])
-	
+
 	// Check replica count
 	assert.Equal(t, int32(2), values["replicaCount"])
-	
+
 	// Check resources
 	resources, ok := values["resources"].(map[string]interface{})
 	require.True(t, ok)
@@ -377,7 +377,7 @@ spec:
 	require.True(t, ok)
 	assert.Equal(t, "1", limits["cpu"])
 	assert.Equal(t, "1Gi", limits["memory"])
-	
+
 	// Check probes
 	probes, ok := values["probes"].(map[string]interface{})
 	require.True(t, ok)

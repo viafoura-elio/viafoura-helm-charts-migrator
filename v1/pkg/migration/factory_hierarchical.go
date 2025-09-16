@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"helm-charts-migrator/v1/pkg/common"
 	"helm-charts-migrator/v1/pkg/config"
 	"helm-charts-migrator/v1/pkg/logger"
 	"helm-charts-migrator/v1/pkg/services"
@@ -28,10 +29,10 @@ func NewHierarchicalMigratorFactory(baseConfig *config.Config) *HierarchicalMigr
 		loader:     config.NewConfigLoader(),
 		log:        logger.WithName("hierarchical-factory"),
 	}
-	
+
 	// Initialize hierarchy from base config
 	factory.initializeHierarchy()
-	
+
 	return factory
 }
 
@@ -47,29 +48,29 @@ func (f *HierarchicalMigratorFactory) initializeHierarchy() {
 			},
 			"performance": map[string]interface{}{
 				"maxConcurrentServices": 5,
-				"showProgress":         true,
+				"showProgress":          true,
 			},
 		},
 	})
-	
+
 	// Convert globals to map and set
 	if f.baseConfig != nil {
 		globalsMap := f.configToMap(f.baseConfig.Globals)
 		f.hierarchy.SetGlobals(globalsMap)
-		
+
 		// Set cluster configs
 		for name, cluster := range f.baseConfig.Clusters {
 			clusterMap := f.clusterToMap(cluster)
 			f.hierarchy.SetClusterConfig(name, clusterMap)
 		}
-		
+
 		// Set service configs
 		for name, service := range f.baseConfig.Services {
 			serviceMap := f.serviceToMap(service)
 			f.hierarchy.SetServiceConfig(name, serviceMap)
 		}
 	}
-	
+
 	f.log.InfoS("Initialized configuration hierarchy",
 		"clusters", len(f.baseConfig.Clusters),
 		"services", len(f.baseConfig.Services))
@@ -81,44 +82,44 @@ func (f *HierarchicalMigratorFactory) CreateMigratorForService(
 	cluster string,
 	env string,
 	namespace string,
-	opts MigratorOptions,
+	opts common.MigratorOptions,
 ) (*Migrator, error) {
 	// Get effective configuration
 	effectiveLayer := f.hierarchy.GetEffectiveConfig(cluster, env, namespace, serviceName)
 	if effectiveLayer == nil {
 		return nil, fmt.Errorf("failed to get effective config for service %s", serviceName)
 	}
-	
+
 	// Convert layer to Config struct
 	effectiveConfig, err := f.layerToConfig(effectiveLayer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert config layer: %w", err)
 	}
-	
+
 	// Log effective configuration
 	f.log.V(2).InfoS("Using effective configuration",
 		"service", serviceName,
 		"cluster", cluster,
 		"environment", env,
 		"namespace", namespace)
-	
+
 	// Create services with effective config
 	kubernetes := services.NewKubernetesService()
 	helm := services.NewHelmService()
 	file := services.NewFileService()
-	
+
 	// Create transformation service with effective config
 	transform := services.NewTransformationService(effectiveConfig)
-	
+
 	// Create transformer factory with effective config
 	transformerFactory := transformers.NewTransformerFactory(effectiveConfig)
-	
+
 	// Create cache service
 	cache, err := services.NewCacheService(opts.CacheDir, opts.CleanupCache)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cache service: %w", err)
 	}
-	
+
 	// Create SOPS service with effective config
 	sopsConfig := &effectiveConfig.Globals.SOPS
 	if sopsConfig.ParallelWorkers == 0 {
@@ -128,7 +129,7 @@ func (f *HierarchicalMigratorFactory) CreateMigratorForService(
 		sopsConfig.Timeout = 30
 	}
 	sops := services.NewSOPSService(sopsConfig)
-	
+
 	// Create migrator with effective configuration
 	migrator := NewMigrator(
 		effectiveConfig,
@@ -138,19 +139,18 @@ func (f *HierarchicalMigratorFactory) CreateMigratorForService(
 		transform,
 		cache,
 		sops,
-		opts.DryRun,
-		opts.NoSOPS,
+		&opts,
 	)
-	
+
 	// Attach transformer registry if needed
 	if transformerFactory != nil {
 		migrator.SetTransformerRegistry(transformerFactory.GetRegistry())
 	}
-	
+
 	f.log.InfoS("Created service-specific migrator",
 		"service", serviceName,
 		"dryRun", opts.DryRun)
-	
+
 	return migrator, nil
 }
 
@@ -158,14 +158,14 @@ func (f *HierarchicalMigratorFactory) CreateMigratorForService(
 func (f *HierarchicalMigratorFactory) CreateParallelMigrator(
 	services []string,
 	cluster string,
-	opts MigratorOptions,
+	opts common.MigratorOptions,
 ) (*ParallelMigrator, error) {
 	// Get cluster config
 	clusterLayer := f.hierarchy.GetEffectiveConfig(cluster, "", "", "")
 	if clusterLayer == nil {
 		return nil, fmt.Errorf("cluster %s not found", cluster)
 	}
-	
+
 	// Get max concurrent services from config
 	maxWorkers := 5
 	if clusterLayer.Values != nil {
@@ -177,10 +177,10 @@ func (f *HierarchicalMigratorFactory) CreateParallelMigrator(
 			}
 		}
 	}
-	
+
 	// Create worker pool
 	pool := workers.NewWorkerPool(maxWorkers)
-	
+
 	// Create parallel migrator
 	pm := &ParallelMigrator{
 		factory:  f,
@@ -190,12 +190,12 @@ func (f *HierarchicalMigratorFactory) CreateParallelMigrator(
 		pool:     pool,
 		log:      logger.WithName("parallel-migrator"),
 	}
-	
+
 	f.log.InfoS("Created parallel migrator",
 		"services", len(services),
 		"workers", maxWorkers,
 		"cluster", cluster)
-	
+
 	return pm, nil
 }
 
@@ -207,14 +207,14 @@ func (f *HierarchicalMigratorFactory) LoadHierarchicalConfig(configDir string) e
 		f.hierarchy.SetDefaults(f.configToMap(defaults.Globals))
 		f.log.V(2).InfoS("Loaded defaults", "path", defaultsPath)
 	}
-	
+
 	// Load globals
 	globalsPath := filepath.Join(configDir, "globals.yaml")
 	if globals, err := f.loader.LoadFromFile(globalsPath); err == nil {
 		f.hierarchy.SetGlobals(f.configToMap(globals.Globals))
 		f.log.V(2).InfoS("Loaded globals", "path", globalsPath)
 	}
-	
+
 	// Load cluster configs
 	clustersDir := filepath.Join(configDir, "clusters")
 	if clusters, err := f.loader.LoadFromDirectory(clustersDir); err == nil {
@@ -223,7 +223,7 @@ func (f *HierarchicalMigratorFactory) LoadHierarchicalConfig(configDir string) e
 			f.log.V(2).InfoS("Loaded cluster config", "cluster", name)
 		}
 	}
-	
+
 	// Load service configs
 	servicesDir := filepath.Join(configDir, "services")
 	if services, err := f.loader.LoadFromDirectory(servicesDir); err == nil {
@@ -232,7 +232,7 @@ func (f *HierarchicalMigratorFactory) LoadHierarchicalConfig(configDir string) e
 			f.log.V(2).InfoS("Loaded service config", "service", name)
 		}
 	}
-	
+
 	f.log.InfoS("Loaded hierarchical configuration", "configDir", configDir)
 	return nil
 }
@@ -250,7 +250,7 @@ func (f *HierarchicalMigratorFactory) configToMap(globals config.Globals) map[st
 		},
 		"performance": map[string]interface{}{
 			"maxConcurrentServices": globals.Performance.MaxConcurrentServices,
-			"showProgress":         globals.Performance.ShowProgress,
+			"showProgress":          globals.Performance.ShowProgress,
 		},
 		"sops": map[string]interface{}{
 			"enabled":         globals.SOPS.Enabled,
@@ -289,24 +289,24 @@ func (f *HierarchicalMigratorFactory) layerToConfig(layer *config.ConfigLayer) (
 		Clusters: make(map[string]config.Cluster),
 		Services: make(map[string]config.Service),
 	}
-	
+
 	// Extract values from layer
 	if layer.Values != nil {
 		// Set cluster if present
 		if cluster, ok := layer.Values["cluster"].(string); ok {
 			cfg.Cluster = cluster
 		}
-		
+
 		// Set namespace if present
 		if namespace, ok := layer.Values["namespace"].(string); ok {
 			cfg.Namespace = namespace
 		}
-		
+
 		// Set globals if present
 		if globals, ok := layer.Values["globals"].(map[string]interface{}); ok {
 			cfg.Globals = f.mapToGlobals(globals)
 		}
-		
+
 		// Set clusters if present
 		if clusters, ok := layer.Values["clusters"].(map[string]interface{}); ok {
 			for name, clusterData := range clusters {
@@ -315,7 +315,7 @@ func (f *HierarchicalMigratorFactory) layerToConfig(layer *config.ConfigLayer) (
 				}
 			}
 		}
-		
+
 		// Set services if present
 		if services, ok := layer.Values["services"].(map[string]interface{}); ok {
 			for name, serviceData := range services {
@@ -325,13 +325,13 @@ func (f *HierarchicalMigratorFactory) layerToConfig(layer *config.ConfigLayer) (
 			}
 		}
 	}
-	
+
 	return cfg, nil
 }
 
 func (f *HierarchicalMigratorFactory) mapToGlobals(m map[string]interface{}) config.Globals {
 	globals := config.Globals{}
-	
+
 	if converter, ok := m["converter"].(map[string]interface{}); ok {
 		if val, ok := converter["minUppercaseChars"].(int); ok {
 			globals.Converter.MinUppercaseChars = val
@@ -343,7 +343,7 @@ func (f *HierarchicalMigratorFactory) mapToGlobals(m map[string]interface{}) con
 			globals.Converter.SkipUppercaseKeys = val
 		}
 	}
-	
+
 	if performance, ok := m["performance"].(map[string]interface{}); ok {
 		if val, ok := performance["maxConcurrentServices"].(int); ok {
 			globals.Performance.MaxConcurrentServices = val
@@ -352,7 +352,7 @@ func (f *HierarchicalMigratorFactory) mapToGlobals(m map[string]interface{}) con
 			globals.Performance.ShowProgress = val
 		}
 	}
-	
+
 	if sops, ok := m["sops"].(map[string]interface{}); ok {
 		if val, ok := sops["enabled"].(bool); ok {
 			globals.SOPS.Enabled = val
@@ -367,13 +367,13 @@ func (f *HierarchicalMigratorFactory) mapToGlobals(m map[string]interface{}) con
 			globals.SOPS.Timeout = val
 		}
 	}
-	
+
 	return globals
 }
 
 func (f *HierarchicalMigratorFactory) mapToCluster(m map[string]interface{}) config.Cluster {
 	cluster := config.Cluster{}
-	
+
 	if val, ok := m["source"].(string); ok {
 		cluster.Source = val
 	}
@@ -395,22 +395,22 @@ func (f *HierarchicalMigratorFactory) mapToCluster(m map[string]interface{}) con
 	if val, ok := m["awsRegion"].(string); ok {
 		cluster.AWSRegion = val
 	}
-	
+
 	return cluster
 }
 
 func (f *HierarchicalMigratorFactory) mapToService(m map[string]interface{}) config.Service {
 	service := config.Service{}
-	
+
 	if val, ok := m["enabled"].(bool); ok {
 		service.Enabled = val
 	}
 	if val, ok := m["capitalized"].(string); ok {
 		service.Capitalized = val
 	}
-	
+
 	// Handle AutoInject and Secrets if needed
-	
+
 	return service
 }
 
@@ -419,7 +419,7 @@ type ParallelMigrator struct {
 	factory  *HierarchicalMigratorFactory
 	services []string
 	cluster  string
-	opts     MigratorOptions
+	opts     common.MigratorOptions
 	pool     *workers.WorkerPool
 	log      *logger.NamedLogger
 }
@@ -431,7 +431,7 @@ func (pm *ParallelMigrator) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to start worker pool: %w", err)
 	}
 	defer pm.pool.Stop()
-	
+
 	// Create tasks for each service
 	var tasks []workers.Task
 	for _, serviceName := range pm.services {
@@ -442,30 +442,30 @@ func (pm *ParallelMigrator) Run(ctx context.Context) error {
 			nil, // These will be created per-task
 			nil,
 			nil,
-			pm.opts.DryRun,
+			&pm.opts,
 		)
 		tasks = append(tasks, task)
 	}
-	
+
 	// Submit tasks
 	if err := pm.pool.SubmitBatch(tasks); err != nil {
 		return fmt.Errorf("failed to submit migration tasks: %w", err)
 	}
-	
+
 	// Wait for completion
 	pm.pool.Wait()
-	
+
 	// Check results
 	stats := pm.pool.Stats()
 	pm.log.InfoS("Parallel migration completed",
 		"total", stats.TotalTasks,
 		"completed", stats.CompletedTasks,
 		"failed", stats.FailedTasks)
-	
+
 	if stats.FailedTasks > 0 {
 		return fmt.Errorf("%d services failed to migrate", stats.FailedTasks)
 	}
-	
+
 	return nil
 }
 

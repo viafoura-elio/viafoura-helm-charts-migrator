@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/elioetibr/yaml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/elioetibr/yaml"
 )
 
 var yamlData = `

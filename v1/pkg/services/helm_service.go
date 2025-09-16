@@ -29,7 +29,7 @@ func (h *helmService) GetReleaseByName(serviceName string, releases []*release.R
 			return rel
 		}
 	}
-	
+
 	// Try with -v2 suffix for canary deployments
 	canaryName := serviceName + "-v2"
 	for _, rel := range releases {
@@ -38,7 +38,7 @@ func (h *helmService) GetReleaseByName(serviceName string, releases []*release.R
 			return rel
 		}
 	}
-	
+
 	return nil
 }
 
@@ -47,14 +47,14 @@ func (h *helmService) ExtractValues(release *release.Release) (map[string]interf
 	if release == nil {
 		return nil, fmt.Errorf("release is nil")
 	}
-	
+
 	if release.Config == nil {
 		return make(map[string]interface{}), nil
 	}
-	
+
 	// The release.Config is already a map[string]interface{}
 	values := release.Config
-	
+
 	return values, nil
 }
 
@@ -63,30 +63,30 @@ func (h *helmService) ExtractManifest(release *release.Release) (string, error) 
 	if release == nil || release.Manifest == "" {
 		return "", nil
 	}
-	
+
 	// Process the manifest to extract relevant resources
 	manifest := release.Manifest
-	
+
 	// Split manifest into resources
 	resources := strings.Split(manifest, "---\n")
 	var processedResources []string
-	
+
 	for _, resource := range resources {
 		resource = strings.TrimSpace(resource)
 		if resource == "" {
 			continue
 		}
-		
+
 		// Check if this is a relevant resource type
 		if h.isRelevantResource(resource) {
 			processedResources = append(processedResources, resource)
 		}
 	}
-	
+
 	if len(processedResources) == 0 {
 		return "", nil
 	}
-	
+
 	return strings.Join(processedResources, "---\n"), nil
 }
 
@@ -97,25 +97,25 @@ func (h *helmService) ValidateChart(chartPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load chart: %w", err)
 	}
-	
+
 	// Validate chart metadata
 	if chart.Metadata == nil {
 		return fmt.Errorf("chart metadata is missing")
 	}
-	
+
 	if chart.Metadata.Name == "" {
 		return fmt.Errorf("chart name is missing")
 	}
-	
+
 	if chart.Metadata.Version == "" {
 		return fmt.Errorf("chart version is missing")
 	}
-	
-	h.log.V(2).InfoS("Chart validated successfully", 
-		"path", chartPath, 
+
+	h.log.V(2).InfoS("Chart validated successfully",
+		"path", chartPath,
 		"name", chart.Metadata.Name,
 		"version", chart.Metadata.Version)
-	
+
 	return nil
 }
 
@@ -141,12 +141,12 @@ func (h *helmService) isRelevantResource(resource string) bool {
 		"kind: HorizontalPodAutoscaler",
 		"kind: NetworkPolicy",
 	}
-	
+
 	for _, kind := range relevantKinds {
 		if strings.Contains(resource, kind) {
 			return true
 		}
 	}
-	
+
 	return false
 }

@@ -56,7 +56,7 @@ func (m *mergeService) MergeWithComments(baseData, overrideData []byte) ([]byte,
 		return nil, nil, fmt.Errorf("failed to encode merged YAML: %w", err)
 	}
 
-	m.log.InfoS("Merged YAML", 
+	m.log.InfoS("Merged YAML",
 		"added", len(report.AddedKeys),
 		"updated", len(report.UpdatedKeys),
 		"deleted", len(report.DeletedKeys),
@@ -70,23 +70,23 @@ func (m *mergeService) mergeMaps(base, override map[string]interface{}, path str
 	if base == nil {
 		base = make(map[string]interface{})
 	}
-	
+
 	result := make(map[string]interface{})
-	
+
 	// Copy all base values
 	for key, baseValue := range base {
 		result[key] = baseValue
 	}
-	
+
 	// Merge override values
 	for key, overrideValue := range override {
 		fullPath := m.buildPath(path, key)
-		
+
 		if baseValue, exists := base[key]; exists {
 			// Key exists in both - need to merge or replace
 			baseMap, baseIsMap := baseValue.(map[string]interface{})
 			overrideMap, overrideIsMap := overrideValue.(map[string]interface{})
-			
+
 			if baseIsMap && overrideIsMap {
 				// Both are maps - recurse
 				result[key] = m.mergeMaps(baseMap, overrideMap, fullPath, report)
@@ -103,11 +103,11 @@ func (m *mergeService) mergeMaps(base, override map[string]interface{}, path str
 			result[key] = overrideValue
 		}
 	}
-	
+
 	// Track deleted keys (in base but not in override)
 	// Note: This is optional based on merge strategy
 	// For hierarchical config merging, we typically don't delete keys
-	
+
 	return result
 }
 
@@ -157,7 +157,7 @@ func (m *mergeService) TrackChanges(before, after map[string]interface{}) *Chang
 		}
 	}
 
-	m.log.V(2).InfoS("Tracked changes", 
+	m.log.V(2).InfoS("Tracked changes",
 		"added", len(changes.Added),
 		"updated", len(changes.Updated),
 		"deleted", len(changes.Deleted))
@@ -187,27 +187,27 @@ func (m *mergeService) mergeNestedChanges(parent *ChangeSet, prefix string, nest
 // FormatChanges formats changes for logging
 func (m *mergeService) FormatChanges(changes *ChangeSet) string {
 	var sb strings.Builder
-	
+
 	if len(changes.Added) > 0 {
 		sb.WriteString("Added keys:\n")
 		for key := range changes.Added {
 			sb.WriteString("  + " + key + "\n")
 		}
 	}
-	
+
 	if len(changes.Updated) > 0 {
 		sb.WriteString("Updated keys:\n")
 		for key := range changes.Updated {
 			sb.WriteString("  ~ " + key + "\n")
 		}
 	}
-	
+
 	if len(changes.Deleted) > 0 {
 		sb.WriteString("Deleted keys:\n")
 		for key := range changes.Deleted {
 			sb.WriteString("  - " + key + "\n")
 		}
 	}
-	
+
 	return sb.String()
 }

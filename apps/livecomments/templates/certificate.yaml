@@ -1,0 +1,19 @@
+{{- if and .Values.istio.enabled .Values.istio.certManager.enabled }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "livecomments.fullname" . }}-tls-cert
+  labels:
+    {{- include "livecomments.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "livecomments.fullname" . }}-tls-cert
+  issuerRef:
+    name: {{ .Values.istio.certManager.issuer | default "letsencrypt-prod" }}
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+  {{- range .Values.istio.serverHostsPrefix }}
+    - {{ printf "%s.%s" . $.Values.istio.domain | quote }}
+  {{- end }}
+{{- end }}

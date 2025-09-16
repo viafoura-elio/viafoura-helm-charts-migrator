@@ -46,7 +46,7 @@ Examples:
 
 func init() {
 	rootCmd.AddCommand(initCmd)
-	
+
 	// Add flags
 	initCmd.Flags().BoolVarP(&initForce, "force", "f", false, "Overwrite existing config file")
 	initCmd.Flags().StringVarP(&initOutput, "output", "o", "./config.yaml", "Output path for the config file")
@@ -54,35 +54,35 @@ func init() {
 
 func runInit(_ *cobra.Command, _ []string) error {
 	log := logger.WithName("init")
-	
+
 	// Resolve output path
 	configPath, err := filepath.Abs(initOutput)
 	if err != nil {
 		return fmt.Errorf("failed to resolve output path: %w", err)
 	}
-	
+
 	// Check if file exists
 	if _, err := os.Stat(configPath); err == nil && !initForce {
 		return fmt.Errorf("config file already exists at %s (use --force to overwrite)", configPath)
 	}
-	
+
 	// Use the embedded default config
 	content := defaultConfigContent
-	
+
 	// Create directory if needed
 	dir := filepath.Dir(configPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
-	
+
 	// Write the config file
 	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
-	
-	log.InfoS("Configuration file created successfully", 
+
+	log.InfoS("Configuration file created successfully",
 		"path", configPath)
-	
+
 	// Print next steps
 	fmt.Println("\n✅ Configuration file created successfully!")
 	fmt.Println("\n📝 Next steps:")
@@ -92,7 +92,6 @@ func runInit(_ *cobra.Command, _ []string) error {
 	fmt.Println("  3. Configure services you want to migrate")
 	fmt.Println("  4. Run migration:")
 	fmt.Printf("     $ helm-charts-migrator migrate --config %s\n", configPath)
-	
+
 	return nil
 }
-

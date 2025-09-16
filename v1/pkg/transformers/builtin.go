@@ -20,7 +20,7 @@ func NewCamelCaseTransformer(skipJavaProperties, skipUppercase bool, minUppercas
 	converter.SkipJavaProperties = skipJavaProperties
 	converter.SkipUppercaseKeys = skipUppercase
 	converter.MinUppercaseChars = minUppercase
-	
+
 	return &CamelCaseTransformer{
 		converter: converter,
 		log:       logger.WithName("camelcase-transformer"),
@@ -51,10 +51,10 @@ func (t *CamelCaseTransformer) Transform(data interface{}) (interface{}, error) 
 	if !ok {
 		return nil, fmt.Errorf("invalid input type: %T", data)
 	}
-	
+
 	result := t.converter.ConvertMap(input)
 	t.log.V(3).InfoS("Converted keys to camelCase", "keyCount", len(result))
-	
+
 	return result, nil
 }
 
@@ -96,16 +96,16 @@ func (t *KeyNormalizerTransformer) Transform(data interface{}) (interface{}, err
 	if !ok {
 		return nil, fmt.Errorf("invalid input type: %T", data)
 	}
-	
+
 	result := t.normalizeKeys(input)
 	t.log.V(3).InfoS("Normalized keys", "patternCount", len(t.patterns))
-	
+
 	return result, nil
 }
 
 func (t *KeyNormalizerTransformer) normalizeKeys(data map[string]interface{}) map[string]interface{} {
 	result := make(map[string]interface{})
-	
+
 	for key, value := range data {
 		// Check if key matches any pattern
 		newKey := key
@@ -116,7 +116,7 @@ func (t *KeyNormalizerTransformer) normalizeKeys(data map[string]interface{}) ma
 				break
 			}
 		}
-		
+
 		// Recursively process nested maps
 		if nestedMap, ok := value.(map[string]interface{}); ok {
 			result[newKey] = t.normalizeKeys(nestedMap)
@@ -124,7 +124,7 @@ func (t *KeyNormalizerTransformer) normalizeKeys(data map[string]interface{}) ma
 			result[newKey] = value
 		}
 	}
-	
+
 	return result
 }
 
@@ -166,21 +166,21 @@ func (t *ValueDefaultsTransformer) Transform(data interface{}) (interface{}, err
 	if !ok {
 		return nil, fmt.Errorf("invalid input type: %T", data)
 	}
-	
+
 	result := t.applyDefaults(input, t.defaults)
 	t.log.V(3).InfoS("Applied default values", "defaultCount", len(t.defaults))
-	
+
 	return result, nil
 }
 
 func (t *ValueDefaultsTransformer) applyDefaults(data, defaults map[string]interface{}) map[string]interface{} {
 	result := make(map[string]interface{})
-	
+
 	// Copy existing data
 	for k, v := range data {
 		result[k] = v
 	}
-	
+
 	// Apply defaults for missing keys
 	for key, defaultValue := range defaults {
 		if _, exists := result[key]; !exists {
@@ -193,7 +193,7 @@ func (t *ValueDefaultsTransformer) applyDefaults(data, defaults map[string]inter
 			}
 		}
 	}
-	
+
 	return result
 }
 
@@ -235,9 +235,9 @@ func (t *PathRemapTransformer) Transform(data interface{}) (interface{}, error) 
 	if !ok {
 		return nil, fmt.Errorf("invalid input type: %T", data)
 	}
-	
+
 	result := deepCopyMap(input)
-	
+
 	// Apply each mapping
 	for sourcePath, targetPath := range t.mappings {
 		value := t.getValueAtPath(result, sourcePath)
@@ -247,7 +247,7 @@ func (t *PathRemapTransformer) Transform(data interface{}) (interface{}, error) 
 			t.log.V(4).InfoS("Remapped path", "from", sourcePath, "to", targetPath)
 		}
 	}
-	
+
 	t.log.V(3).InfoS("Applied path remappings", "mappingCount", len(t.mappings))
 	return result, nil
 }
@@ -255,36 +255,36 @@ func (t *PathRemapTransformer) Transform(data interface{}) (interface{}, error) 
 func (t *PathRemapTransformer) getValueAtPath(data map[string]interface{}, path string) interface{} {
 	parts := strings.Split(path, ".")
 	current := data
-	
+
 	for i, part := range parts {
 		if i == len(parts)-1 {
 			return current[part]
 		}
-		
+
 		if next, ok := current[part].(map[string]interface{}); ok {
 			current = next
 		} else {
 			return nil
 		}
 	}
-	
+
 	return nil
 }
 
 func (t *PathRemapTransformer) setValueAtPath(data map[string]interface{}, path string, value interface{}) {
 	parts := strings.Split(path, ".")
 	current := data
-	
+
 	for i, part := range parts {
 		if i == len(parts)-1 {
 			current[part] = value
 			return
 		}
-		
+
 		if _, exists := current[part]; !exists {
 			current[part] = make(map[string]interface{})
 		}
-		
+
 		if next, ok := current[part].(map[string]interface{}); ok {
 			current = next
 		} else {
@@ -297,13 +297,13 @@ func (t *PathRemapTransformer) setValueAtPath(data map[string]interface{}, path 
 func (t *PathRemapTransformer) deleteValueAtPath(data map[string]interface{}, path string) {
 	parts := strings.Split(path, ".")
 	current := data
-	
+
 	for i, part := range parts {
 		if i == len(parts)-1 {
 			delete(current, part)
 			return
 		}
-		
+
 		if next, ok := current[part].(map[string]interface{}); ok {
 			current = next
 		} else {

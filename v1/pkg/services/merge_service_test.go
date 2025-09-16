@@ -44,11 +44,11 @@ nested:
 				var result map[string]interface{}
 				err := yaml.Unmarshal(merged, &result)
 				require.NoError(t, err)
-				
+
 				assert.Equal(t, "value1", result["key1"])
 				assert.Equal(t, "updated_value", result["key2"])
 				assert.Equal(t, "value3", result["key3"])
-				
+
 				nested := result["nested"].(map[string]interface{})
 				assert.Equal(t, float64(1), nested["a"])
 				assert.Equal(t, float64(3), nested["b"])
@@ -112,20 +112,20 @@ key2: value2
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			merged, report, err := svc.MergeWithComments([]byte(tt.baseYAML), []byte(tt.overrideYAML))
-			
+
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
-			
+
 			require.NoError(t, err)
 			require.NotNil(t, merged)
 			require.NotNil(t, report)
-			
+
 			// Check report
 			assert.ElementsMatch(t, tt.wantAdded, report.AddedKeys)
 			assert.ElementsMatch(t, tt.wantUpdated, report.UpdatedKeys)
-			
+
 			// Validate merged content
 			if tt.validate != nil {
 				tt.validate(t, merged)
@@ -201,7 +201,7 @@ func TestMergeService_TrackChanges(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			changes := svc.TrackChanges(tt.before, tt.after)
-			
+
 			require.NotNil(t, changes)
 			assert.Len(t, changes.Added, tt.wantAdded)
 			assert.Len(t, changes.Updated, tt.wantUpdated)
@@ -252,37 +252,37 @@ features:
 
 	cfg := &config.Config{}
 	svc := NewMergeService(cfg)
-	
+
 	merged, report, err := svc.MergeWithComments([]byte(baseYAML), []byte(overrideYAML))
 	require.NoError(t, err)
-	
+
 	// Parse result
 	var result map[string]interface{}
 	err = yaml.Unmarshal(merged, &result)
 	require.NoError(t, err)
-	
+
 	// Check merged structure
 	app := result["application"].(map[string]interface{})
-	assert.Equal(t, "myapp", app["name"]) // kept from base
+	assert.Equal(t, "myapp", app["name"])    // kept from base
 	assert.Equal(t, "2.0.0", app["version"]) // updated from override
-	
+
 	appConfig := app["config"].(map[string]interface{})
 	db := appConfig["database"].(map[string]interface{})
 	assert.Equal(t, "prod.db.example.com", db["host"]) // updated
-	assert.Equal(t, float64(5432), db["port"]) // kept from base
-	assert.Equal(t, true, db["ssl"]) // added from override
-	
+	assert.Equal(t, float64(5432), db["port"])         // kept from base
+	assert.Equal(t, true, db["ssl"])                   // added from override
+
 	creds := db["credentials"].(map[string]interface{})
 	assert.Equal(t, "prod_user", creds["username"]) // updated
-	assert.Equal(t, "secret", creds["password"]) // added
-	
+	assert.Equal(t, "secret", creds["password"])    // added
+
 	cache := appConfig["cache"].(map[string]interface{})
-	assert.Equal(t, true, cache["enabled"]) // kept from base
+	assert.Equal(t, true, cache["enabled"])      // kept from base
 	assert.Equal(t, float64(3600), cache["ttl"]) // kept from base
-	
+
 	monitoring := appConfig["monitoring"].(map[string]interface{})
 	assert.Equal(t, true, monitoring["enabled"]) // added from override
-	
+
 	// Check report
 	assert.Contains(t, report.AddedKeys, "application.config.database.ssl")
 	assert.Contains(t, report.AddedKeys, "application.config.database.credentials.password")

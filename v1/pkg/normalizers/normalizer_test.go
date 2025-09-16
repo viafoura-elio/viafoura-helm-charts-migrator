@@ -3,9 +3,9 @@ package normalizers
 import (
 	"testing"
 
+	"github.com/elioetibr/yaml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/elioetibr/yaml"
 
 	"helm-charts-migrator/v1/pkg/config"
 )

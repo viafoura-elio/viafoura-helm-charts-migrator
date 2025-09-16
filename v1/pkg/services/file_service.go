@@ -24,14 +24,25 @@ func NewFileService() FileService {
 }
 
 // ReadYAML reads a YAML file and returns it as a map
-func (f *fileService) ReadYAML(path string) (map[string]interface{}, error) {
+func (f *fileService) ReadYAML(path string) (*yaml.Document, error) {
 	// Check if file exists
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to read file %s: %w", path, err)
 	}
 
 	// Use the centralized yaml package to load the file
-	doc, err := yaml.LoadFile(path, nil)
+	result, err := yaml.LoadFile(path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load YAML from %s: %w", path, err)
+	}
+
+	return result, nil
+}
+
+// ReadYAMLToMap reads a YAML file and returns it as a map
+func (f *fileService) ReadYAMLToMap(path string) (map[string]interface{}, error) {
+	// Load/Read Yaml
+	doc, err := f.ReadYAML(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load YAML from %s: %w", path, err)
 	}
@@ -102,34 +113,34 @@ func (f *fileService) CopyDirectory(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("failed to stat source directory %s: %w", src, err)
 	}
-	
+
 	if !srcInfo.IsDir() {
 		return fmt.Errorf("source %s is not a directory", src)
 	}
-	
+
 	// Create destination directory
 	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
 		return fmt.Errorf("failed to create destination directory %s: %w", dst, err)
 	}
-	
+
 	// Walk through source directory
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		// Calculate destination path
 		relPath, err := filepath.Rel(src, path)
 		if err != nil {
 			return fmt.Errorf("failed to get relative path: %w", err)
 		}
 		dstPath := filepath.Join(dst, relPath)
-		
+
 		if info.IsDir() {
 			// Create directory
 			return os.MkdirAll(dstPath, info.Mode())
 		}
-		
+
 		// Copy file
 		return f.CopyFile(path, dstPath)
 	})
@@ -143,31 +154,31 @@ func (f *fileService) CopyFile(src, dst string) error {
 		return fmt.Errorf("failed to open source file %s: %w", src, err)
 	}
 	defer srcFile.Close()
-	
+
 	// Get source file info
 	srcInfo, err := srcFile.Stat()
 	if err != nil {
 		return fmt.Errorf("failed to stat source file %s: %w", src, err)
 	}
-	
+
 	// Ensure destination directory exists
 	dstDir := filepath.Dir(dst)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return fmt.Errorf("failed to create destination directory %s: %w", dstDir, err)
 	}
-	
+
 	// Create destination file
 	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcInfo.Mode())
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", dst, err)
 	}
 	defer dstFile.Close()
-	
+
 	// Copy contents
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
 		return fmt.Errorf("failed to copy file contents: %w", err)
 	}
-	
+
 	f.log.V(3).InfoS("Copied file", "src", src, "dst", dst)
 	return nil
 }
@@ -183,11 +194,11 @@ func (f *fileService) EnsureDir(path string) error {
 	if f.Exists(path) {
 		return nil
 	}
-	
+
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", path, err)
 	}
-	
+
 	f.log.V(3).InfoS("Created directory", "path", path)
 	return nil
 }
@@ -195,32 +206,32 @@ func (f *fileService) EnsureDir(path string) error {
 // ListFiles lists files in a directory matching a pattern
 func (f *fileService) ListFiles(dir, pattern string) ([]string, error) {
 	var files []string
-	
+
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		if info.IsDir() {
 			return nil
 		}
-		
+
 		// Check if file matches pattern
 		matched, err := filepath.Match(pattern, filepath.Base(path))
 		if err != nil {
 			return fmt.Errorf("invalid pattern %s: %w", pattern, err)
 		}
-		
+
 		if matched || strings.Contains(filepath.Base(path), pattern) {
 			files = append(files, path)
 		}
-		
+
 		return nil
 	})
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to list files in %s: %w", dir, err)
 	}
-	
+
 	return files, nil
 }

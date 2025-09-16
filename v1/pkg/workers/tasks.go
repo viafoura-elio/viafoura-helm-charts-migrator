@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"helm-charts-migrator/v1/pkg/adapters"
+	"helm-charts-migrator/v1/pkg/common"
 	"helm-charts-migrator/v1/pkg/config"
 	"helm-charts-migrator/v1/pkg/logger"
 	"helm-charts-migrator/v1/pkg/services"
@@ -19,7 +20,7 @@ type ServiceMigrationTask struct {
 	ChartCopier     adapters.ChartCopier
 	ValuesExtractor adapters.ValuesExtractor
 	Pipeline        *adapters.TransformationPipeline
-	DryRun          bool
+	Opts            *common.MigratorOptions
 	log             *logger.NamedLogger
 }
 
@@ -30,7 +31,7 @@ func NewServiceMigrationTask(
 	chartCopier adapters.ChartCopier,
 	extractor adapters.ValuesExtractor,
 	pipeline *adapters.TransformationPipeline,
-	dryRun bool,
+	opts *common.MigratorOptions,
 ) *ServiceMigrationTask {
 	return &ServiceMigrationTask{
 		ServiceName:     serviceName,
@@ -39,7 +40,7 @@ func NewServiceMigrationTask(
 		ChartCopier:     chartCopier,
 		ValuesExtractor: extractor,
 		Pipeline:        pipeline,
-		DryRun:          dryRun,
+		Opts:            opts,
 		log:             logger.WithName("service-migration-task"),
 	}
 }
@@ -61,56 +62,70 @@ func (t *ServiceMigrationTask) Execute(ctx context.Context) error {
 	t.log.InfoS("Starting service migration",
 		"service", t.ServiceName,
 		"cluster", t.ClusterName,
-		"dryRun", t.DryRun)
-	
+		"dryRun", t.Opts.DryRun)
+
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-	
-	if t.DryRun {
+
+	if t.Opts.DryRun {
 		t.log.InfoS("DRY RUN: Would migrate service",
 			"service", t.ServiceName,
 			"cluster", t.ClusterName)
 		return nil
 	}
-	
+
 	// Perform the actual migration
 	// This is a simplified version - the real implementation would call
 	// the actual migration logic from the Migrator
-	
+
 	service, exists := t.Config.Services[t.ServiceName]
 	if !exists || !service.Enabled {
 		return fmt.Errorf("service %s not found or not enabled", t.ServiceName)
 	}
-	
-	paths := config.NewPaths("", "apps", ".cache").
+
+	// Use paths from MigratorOptions
+	targetPath := t.Opts.TargetPath
+	if targetPath == "" {
+		targetPath = "apps"
+	}
+	cacheDir := t.Opts.CacheDir
+	if cacheDir == "" {
+		cacheDir = ".cache"
+	}
+	basePath := t.Opts.BasePath
+	if basePath == "" {
+		basePath = "migration/base-chart"
+	}
+
+	paths := config.NewPaths(t.Opts.SourcePath, targetPath, cacheDir).
 		ForService(t.ServiceName).
 		ForCluster(t.ClusterName)
 	targetDir := paths.ClusterDir()
-	
+
 	// Copy base chart
 	if err := t.ChartCopier.CopyBaseChart(
-		"migration/base-chart",
+		basePath,
 		paths.ServiceDir(),
 		t.ServiceName,
 		service.Capitalized,
 	); err != nil {
 		return fmt.Errorf("failed to copy base chart: %w", err)
 	}
-	
+
 	// Transform values
 	if err := t.Pipeline.TransformService(t.ServiceName); err != nil {
 		return fmt.Errorf("failed to transform service: %w", err)
 	}
-	
+
 	t.log.InfoS("Service migration completed",
 		"service", t.ServiceName,
 		"cluster", t.ClusterName,
 		"targetDir", targetDir)
-	
+
 	return nil
 }
 
@@ -155,21 +170,21 @@ func (t *ValuesExtractionTask) Execute(ctx context.Context) error {
 		"release", t.ReleaseName,
 		"namespace", t.Namespace,
 		"cluster", t.Cluster)
-	
+
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-	
+
 	// This would use the actual helm service to get the release
 	// and extract values - simplified for demonstration
-	
+
 	t.log.V(3).InfoS("Values extracted",
 		"release", t.ReleaseName,
 		"outputPath", t.OutputPath)
-	
+
 	return nil
 }
 
@@ -209,32 +224,32 @@ func (t *TransformationTask) Execute(ctx context.Context) error {
 	t.log.V(3).InfoS("Transforming values",
 		"service", t.ServiceName,
 		"file", t.FilePath)
-	
+
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-	
+
 	// Read values
 	values := make(map[string]interface{})
 	// This would read the actual file
-	
+
 	// Apply transformation
 	transformed, err := t.Transform.Transform(values, t.Config)
 	if err != nil {
 		return fmt.Errorf("transformation failed: %w", err)
 	}
-	
+
 	// Write back transformed values
 	// This would write the actual file
-	
+
 	t.log.V(3).InfoS("Values transformed",
 		"service", t.ServiceName,
 		"file", t.FilePath,
 		"transformed", transformed != nil)
-	
+
 	return nil
 }
 
@@ -271,25 +286,25 @@ func (t *SOPSEncryptionTask) Execute(ctx context.Context) error {
 	t.log.V(3).InfoS("Encrypting file with SOPS",
 		"file", t.FilePath,
 		"profile", t.AwsProfile)
-	
+
 	// Check context cancellation
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-	
+
 	// Check if already encrypted
 	if t.SOPSService.IsEncrypted(t.FilePath) {
 		t.log.V(4).InfoS("File already encrypted, skipping", "file", t.FilePath)
 		return nil
 	}
-	
+
 	// Encrypt the file
 	if err := t.SOPSService.Encrypt(t.FilePath); err != nil {
 		return fmt.Errorf("failed to encrypt %s: %w", t.FilePath, err)
 	}
-	
+
 	t.log.V(3).InfoS("File encrypted", "file", t.FilePath)
 	return nil
 }
@@ -321,22 +336,22 @@ func (t *BatchTask) Priority() int {
 func (t *BatchTask) Execute(ctx context.Context) error {
 	log := logger.WithName("batch-task")
 	log.InfoS("Starting batch task", "name", t.Name, "taskCount", len(t.SubTasks))
-	
+
 	// Start the pool
 	if err := t.pool.Start(); err != nil {
 		return fmt.Errorf("failed to start worker pool: %w", err)
 	}
 	defer t.pool.Stop()
-	
+
 	// Submit all sub-tasks
 	if err := t.pool.SubmitBatch(t.SubTasks); err != nil {
 		return fmt.Errorf("failed to submit batch: %w", err)
 	}
-	
+
 	// Collect results
 	successCount := 0
 	failCount := 0
-	
+
 	go func() {
 		for result := range t.pool.Results() {
 			if result.Success {
@@ -347,18 +362,18 @@ func (t *BatchTask) Execute(ctx context.Context) error {
 			}
 		}
 	}()
-	
+
 	// Wait for completion
 	t.pool.Wait()
-	
+
 	log.InfoS("Batch task completed",
 		"name", t.Name,
 		"success", successCount,
 		"failed", failCount)
-	
+
 	if failCount > 0 {
 		return fmt.Errorf("batch task %s had %d failures", t.Name, failCount)
 	}
-	
+
 	return nil
 }

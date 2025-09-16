@@ -26,7 +26,7 @@ func NewCacheService(cacheDir string, cleanupOnExit bool) (CacheService, error) 
 	var tempDir string
 	var err error
 	shouldCleanup := cleanupOnExit
-	
+
 	if cacheDir != "" {
 		// Use specified cache directory (persistent cache)
 		tempDir = cacheDir
@@ -41,7 +41,7 @@ func NewCacheService(cacheDir string, cleanupOnExit bool) (CacheService, error) 
 		}
 		shouldCleanup = true
 	}
-	
+
 	return &cacheService{
 		cache:         make(map[string][]*release.Release),
 		tempDir:       tempDir,
@@ -54,7 +54,7 @@ func NewCacheService(cacheDir string, cleanupOnExit bool) (CacheService, error) 
 func (c *cacheService) GetReleases(cluster, namespace string) []*release.Release {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	key := fmt.Sprintf("%s:%s", cluster, namespace)
 	return c.cache[key]
 }
@@ -63,24 +63,24 @@ func (c *cacheService) GetReleases(cluster, namespace string) []*release.Release
 func (c *cacheService) SetReleases(cluster, namespace string, releases []*release.Release) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	key := fmt.Sprintf("%s:%s", cluster, namespace)
 	c.cache[key] = releases
 	c.log.V(2).InfoS("Cached releases", "cluster", cluster, "namespace", namespace, "count", len(releases))
-	
+
 	// Save each release's values to disk for later use
 	for _, rel := range releases {
 		if rel == nil || rel.Config == nil {
 			continue
 		}
-		
+
 		// Create cache directory for this service
 		cacheDir := filepath.Join(c.tempDir, cluster, namespace, rel.Name)
 		if err := os.MkdirAll(cacheDir, 0755); err != nil {
 			c.log.Error(err, "Failed to create cache directory", "path", cacheDir)
 			continue
 		}
-		
+
 		// Save values.yaml using centralized yaml package
 		valuesPath := filepath.Join(cacheDir, "values.yaml")
 
@@ -95,9 +95,9 @@ func (c *cacheService) SetReleases(cluster, namespace string, releases []*releas
 			c.log.Error(err, "Failed to save values to cache", "path", valuesPath)
 			continue
 		}
-		
+
 		c.log.V(3).InfoS("Cached values to disk", "service", rel.Name, "path", valuesPath)
-		
+
 		// Save pod manifest if available
 		if rel.Manifest != "" {
 			manifestPath := filepath.Join(cacheDir, "manifest.yaml")
@@ -108,7 +108,7 @@ func (c *cacheService) SetReleases(cluster, namespace string, releases []*releas
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -121,17 +121,17 @@ func (c *cacheService) GetTempPath(cluster, namespace, service, resourceType str
 func (c *cacheService) Clear() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Clear in-memory cache
 	c.cache = make(map[string][]*release.Release)
-	
+
 	// Clear disk cache
 	if c.tempDir != "" {
 		entries, err := os.ReadDir(c.tempDir)
 		if err != nil {
 			return fmt.Errorf("failed to read cache directory: %w", err)
 		}
-		
+
 		for _, entry := range entries {
 			path := filepath.Join(c.tempDir, entry.Name())
 			if err := os.RemoveAll(path); err != nil {
@@ -139,7 +139,7 @@ func (c *cacheService) Clear() error {
 			}
 		}
 	}
-	
+
 	c.log.InfoS("Cache cleared")
 	return nil
 }
@@ -150,11 +150,11 @@ func (c *cacheService) Cleanup() error {
 		c.log.InfoS("Keeping cache directory", "path", c.tempDir)
 		return nil
 	}
-	
+
 	if c.tempDir != "" {
 		c.log.InfoS("Cleaning up cache directory", "path", c.tempDir)
 		return os.RemoveAll(c.tempDir)
 	}
-	
+
 	return nil
 }

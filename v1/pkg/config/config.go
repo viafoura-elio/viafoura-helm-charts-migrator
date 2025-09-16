@@ -33,7 +33,7 @@ type Globals struct {
 // PerformanceConfig represents performance tuning configuration
 type PerformanceConfig struct {
 	MaxConcurrentServices int  `yaml:"maxConcurrentServices"`
-	ShowProgress         bool `yaml:"showProgress"`
+	ShowProgress          bool `yaml:"showProgress"`
 }
 
 // SOPSConfig represents SOPS encryption/decryption configuration
