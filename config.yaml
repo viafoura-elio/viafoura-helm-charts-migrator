@@ -320,25 +320,25 @@ clusters:
             enabled: true
             name: vf-dev2
           vf-dev3:
-            enabled: true
+            enabled: false
             name: vf-dev3
           vf-dev4:
-            enabled: true
+            enabled: false
             name: vf-dev4
           vf-dev5:
-            enabled: true
+            enabled: false
             name: vf-dev5
       test:
         enabled: true
         namespaces:
           vf-test2:
-            enabled: true
+            enabled: false
             name: vf-test2
           vf-test3:
-            enabled: true
+            enabled: false
             name: vf-test3
           vf-test4:
-            enabled: true
+            enabled: false
             name: vf-test4
 
 # Services to Migrate

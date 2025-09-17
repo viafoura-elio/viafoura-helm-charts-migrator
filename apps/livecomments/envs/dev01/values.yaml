@@ -1,30 +1,81 @@
+# This is a hierarchical configuration override for Dev01 Environment Level
+# If necessary you can override more key values pairs on Namespace Level
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Argo Rollout configuration for advanced deployment strategies
 rollout:
-  analysis:
-    count: 3
-    enabled: false
-    failureLimit: 1
-    interval: 1m
-    prometheus:
-      address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
-    responseTimeThreshold: 500
-    startingStep: 2
-    successCondition: 0.99
-    templates:
-      - templateName: success-rate
+  # -- Whether to enable Argo Rollouts
   enabled: true
+
+  # -- Number of old ReplicaSets to retain for rollback
   revisionHistoryLimit: 10
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # -- Rollout strategy configuration
   strategy:
+    # @schema
+    # additionalProperties: true
+    # blueGreen:
+    # @schema
+    # -- Blue-Green deployment strategy
     blueGreen:
-      autoPromotionEnabled: false
-      autoPromotionSeconds: 30
+      # -- Whether to enable blue-green deployments
       enabled: false
-      previewReplicaCount: null
+      # -- Whether to automatically promote new versions
+      autoPromotionEnabled: false
+      # -- Seconds to wait before auto-promotion
+      autoPromotionSeconds: 30
+      # -- Number of preview replicas (null uses main replica count)
+      previewReplicaCount:
+      # -- Seconds to wait before scaling down old version
       scaleDownDelaySeconds: 30
+
+    # -- Canary deployment strategy
+    # @schema
+    # additionalProperties: true
+    # canary:
+    # @schema
     canary:
+      # -- Whether to enable canary deployments
       enabled: true
+      # @schema
+      # additionalProperties: true
+      # trafficRouting:
+      # @schema
+      # -- Istio traffic routing configuration for canary
+      trafficRouting:
+        # @schema
+        # additionalProperties: true
+        # istio:
+        # @schema
+        istio:
+          # @schema
+          # additionalProperties: true
+          # virtualService:
+          # @schema
+          virtualService:
+            name: ""  # Will be set via tpl in rollout template
+            routes:
+              - primary
+          destinationRule:
+            name: ""  # Will be set via tpl in rollout template
+            canarySubsetName: canary
+            stableSubsetName: stable
+      # @schema
+      # additionalProperties: true
+      # managedRoutes:
+      # @schema
+      # -- Routes managed by the rollout controller
       managedRoutes: []
-      maxSurge: 10%
-      maxUnavailable: 0
+      # @schema
+      # additionalProperties: true
+      # steps:
+      # @schema
+      # -- Canary deployment steps with traffic weights and pauses
       steps:
         - setWeight: 50
         - pause:
@@ -32,13 +83,34 @@ rollout:
         - setWeight: 100
         - pause:
             duration: 3m
-      trafficRouting:
-        istio:
-          destinationRule:
-            canarySubsetName: canary
-            name: ""
-            stableSubsetName: stable
-          virtualService:
-            name: ""
-            routes:
-              - primary
+      maxUnavailable: 0
+
+      # -- Maximum number of surge pods during canary
+      maxSurge: 10%
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # -- Analysis configuration for automated rollout decisions
+  analysis:
+    # -- Whether to enable rollout analysis
+    enabled: false
+    # -- Number of analysis runs to perform
+    count: 3
+    # -- Number of failures before rollback
+    failureLimit: 1
+    # -- Interval between analysis runs
+    interval: 1m
+    # -- Response time threshold in milliseconds
+    responseTimeThreshold: 500
+    # -- Step at which to start analysis
+    startingStep: 2
+    # -- Success condition threshold (0.99 = 99% success rate)
+    successCondition: 0.99
+    # -- Prometheus configuration for metrics collection
+    prometheus:
+      # -- Prometheus server address
+      address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+    # -- Analysis templates to use
+    templates:
+      - templateName: success-rate

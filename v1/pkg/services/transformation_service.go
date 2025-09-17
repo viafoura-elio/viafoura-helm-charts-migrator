@@ -7,42 +7,94 @@ import (
 	"helm-charts-migrator/v1/pkg/keycase"
 	"helm-charts-migrator/v1/pkg/logger"
 	"helm-charts-migrator/v1/pkg/secrets"
+	"helm-charts-migrator/v1/pkg/transformers"
 	"helm-charts-migrator/v1/pkg/yaml"
 )
 
 // transformationService implements TransformationService interface
 type transformationService struct {
-	log             *logger.NamedLogger
-	config          *config.Config
-	secretExtractor *secrets.SecretExtractor
+	log                *logger.NamedLogger
+	config             *config.Config
+	secretExtractor    *secrets.SecretExtractor
+	transformerFactory *transformers.TransformerFactory
+	registry           *transformers.TransformerRegistry
 }
 
 // NewTransformationService creates a new TransformationService with dependency injection
 func NewTransformationService(cfg *config.Config) TransformationService {
+	log := logger.WithName("transformation-service")
+
 	// Create secret extractor from config
 	extractor, err := secrets.NewFromMainConfig(cfg)
 	if err != nil {
 		// Log error but continue with nil extractor
 		// This allows the service to work even if secret extraction is misconfigured
-		logger.WithName("transformation-service").Error(err, "Failed to create secret extractor")
+		log.Error(err, "Failed to create secret extractor")
+	}
+
+	// Create transformer factory and registry
+	var factory *transformers.TransformerFactory
+	var registry *transformers.TransformerRegistry
+
+	if cfg != nil {
+		// Create factory which will automatically register built-in transformers
+		factory = transformers.NewTransformerFactory(cfg)
+		registry = factory.GetRegistry()
+		log.V(2).InfoS("Initialized transformer factory", "transformers", registry.Count())
 	}
 
 	return &transformationService{
-		log:             logger.WithName("transformation-service"),
-		config:          cfg,
-		secretExtractor: extractor,
+		log:                log,
+		config:             cfg,
+		secretExtractor:    extractor,
+		transformerFactory: factory,
+		registry:           registry,
 	}
 }
 
 // Transform applies transformations to values based on config
+// This method follows the Single Responsibility Principle by delegating to specialized transformers
 func (t *transformationService) Transform(values map[string]interface{}, cfg TransformConfig) (map[string]interface{}, error) {
 	if values == nil {
 		return make(map[string]interface{}), nil
 	}
 
-	// For now, just return a deep copy
-	// TODO: Implement normalizations and transformations when ready
+	// Start with a deep copy to avoid modifying original
 	result := yaml.DeepCopyMap(values)
+
+	// Apply transformations if registry is available
+	if t.registry != nil {
+		// Get all transformers sorted by priority
+		transformers := t.registry.GetAllByPriority()
+
+		for _, transformer := range transformers {
+			// Validate if transformer can handle the data
+			if err := transformer.Validate(result); err != nil {
+				t.log.V(3).InfoS("Transformer validation failed, skipping",
+					"transformer", transformer.Name(),
+					"error", err)
+				continue
+			}
+
+			// Apply transformation
+			transformed, err := transformer.Transform(result)
+			if err != nil {
+				t.log.Error(err, "Transformation failed",
+					"transformer", transformer.Name(),
+					"service", cfg.ServiceName)
+				// Continue with other transformers even if one fails
+				continue
+			}
+
+			// Update result if transformation succeeded
+			if transformedMap, ok := transformed.(map[string]interface{}); ok {
+				result = transformedMap
+				t.log.V(2).InfoS("Applied transformation",
+					"transformer", transformer.Name(),
+					"service", cfg.ServiceName)
+			}
+		}
+	}
 
 	return result, nil
 }

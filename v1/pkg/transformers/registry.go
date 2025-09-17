@@ -253,6 +253,43 @@ func (r *TransformerRegistry) Count() int {
 	return len(r.transformers)
 }
 
+// GetAllByPriority returns all transformers sorted by priority (lower priority runs first)
+func (r *TransformerRegistry) GetAllByPriority() []Transformer {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Create a slice of transformers
+	type transformerWithPriority struct {
+		transformer Transformer
+		priority    int
+	}
+
+	items := make([]transformerWithPriority, 0, len(r.transformers))
+	for _, t := range r.transformers {
+		items = append(items, transformerWithPriority{
+			transformer: t,
+			priority:    t.Priority(),
+		})
+	}
+
+	// Sort by priority (lower numbers run first)
+	for i := 0; i < len(items); i++ {
+		for j := i + 1; j < len(items); j++ {
+			if items[j].priority < items[i].priority {
+				items[i], items[j] = items[j], items[i]
+			}
+		}
+	}
+
+	// Extract transformers
+	result := make([]Transformer, len(items))
+	for i, item := range items {
+		result[i] = item.transformer
+	}
+
+	return result
+}
+
 // GetInfo returns information about all registered transformers
 func (r *TransformerRegistry) GetInfo() []TransformerInfo {
 	r.mu.RLock()

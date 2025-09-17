@@ -1,482 +1,745 @@
-affinity: {}
-arch: amd64
-autoscaling:
-  behavior:
-    scaleDown:
-      policies:
-        - periodSeconds: 60
-          type: Percent
-          value: 10
-        - periodSeconds: 60
-          type: Pods
-          value: 1
-      selectPolicy: Min
-      stabilizationWindowSeconds: 300
-    scaleUp:
-      policies:
-        - periodSeconds: 60
-          type: Percent
-          value: 100
-        - periodSeconds: 60
-          type: Pods
-          value: 2
-      selectPolicy: Max
-      stabilizationWindowSeconds: 60
-  enabled: false
-  externalMetrics:
-    connectionMetricName: base_connections_current
-    enabled: false
-  maxReplicas: 100
-  minReplicas: 5
-  targetCPUUtilizationPercentage: 33
-backup:
-  cronjob:
-    activeDeadlineSeconds: 3600
-    backoffLimit: 2
-    backupType: application-data
-    concurrencyPolicy: Forbid
-    enabled: false
-    extraEnv: {}
-    failedJobsHistoryLimit: 1
-    image:
-      pullPolicy: IfNotPresent
-      repository: amazon/aws-cli
-      tag: 2.13.0
-    nodeSelector: {}
-    resources:
-      limits:
-        cpu: 500m
-        memory: 512Mi
-      requests:
-        cpu: 100m
-        memory: 128Mi
-    retentionDays: 30
-    s3:
-      bucket: ""
-      prefix: backups
-    schedule: 0 3 * * *
-    startingDeadlineSeconds: 300
-    successfulJobsHistoryLimit: 3
-    timeZone: UTC
-    tolerations: []
-    volumeMounts: []
-    volumes: []
-  enabled: false
-  monitoring:
-    alerting:
-      channels:
-        - slack
-        - email
-      enabled: true
-      severity: warning
-    enabled: true
-    metrics:
-      enabled: true
-      interval: 30s
-      path: /metrics
-  velero:
-    customResources:
-      - rollouts.argoproj.io
-      - virtualservices.networking.istio.io
-      - destinationrules.networking.istio.io
-      - gateways.networking.istio.io
-    enabled: false
-    hooks:
-      enabled: true
-    includeCustomResources: true
-    namespace: velero
-    retention: 720h
-    schedule: 0 2 * * *
-    storageLocation: default
-    volumeSnapshotLocations:
-      - default
-configMap: {}
-configMapEnvVars: {}
-datadog:
-  apm:
-    enabled: false
-    environment: production
-    serviceName: livecomments
-  collectAllMetrics: true
-  collectHistogramBuckets: true
-  containerName: livecomments
-  enabled: true
-  healthServiceCheck: true
-  ignoreMetrics:
-    - go_gc_.*
-    - go_goroutines
-    - process_.*_bytes
-    - prometheus_.*
-    - up
-  initConfig: {}
-  instanceConfig: {}
-  integration: jmx
-  jmx:
-    collect_default_jvm_metrics: true
-    collectDefaultMetrics: true
-    conf:
-      - include:
-          attribute:
-            HeapMemoryUsage:
-              alias: jvm.heap_memory
-              metric_type: gauge
-            NonHeapMemoryUsage:
-              alias: jvm.non_heap_memory
-              metric_type: gauge
-          domain: java.lang
-          type: Memory
-      - include:
-          attribute:
-            CollectionCount:
-              alias: jvm.gc.cms.count
-              metric_type: counter
-            CollectionTime:
-              alias: jvm.gc.cms.time
-              metric_type: counter
-          domain: java.lang
-          name: '*'
-          type: GarbageCollector
-      - include:
-          attribute:
-            DaemonThreadCount:
-              alias: jvm.daemon_thread_count
-              metric_type: gauge
-            ThreadCount:
-              alias: jvm.thread_count
-              metric_type: gauge
-          domain: java.lang
-          type: Threading
-      - include:
-          attribute:
-            ActiveConnections:
-              alias: app.db.active_connections
-              metric_type: gauge
-            IdleConnections:
-              alias: app.db.idle_connections
-              metric_type: gauge
-          domain: com.your.app
-          type: ConnectionPool
-    isJmx: true
-    java_bin_path: ""
-    java_options: ""
-    jmxUrl: ""
-    key_store_password: ""
-    key_store_path: ""
-    name: ""
-    new_gc_metrics: true
-    password: ""
-    processNameRegex: ""
-    rmi_client_timeout: 15000
-    rmi_connection_timeout: 20000
-    rmi_registry_ssl: false
-    service_check_prefix: jmx
-    tools_jar_path: ""
-    trust_store_password: ""
-    trust_store_path: ""
-    user: ""
-  logs:
-    enabled: true
-    logProcessingRules:
-      - name: exclude_health_checks
-        pattern: GET /health
-        type: exclude_at_match
-      - name: mask_credit_cards
-        pattern: \d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}
-        replacement: '****-****-****-****'
-        type: mask_sequences
-    service: livecomments
-    source: livecomments
-  metricTransformations:
-    labels:
-      - from: handler
-        to: endpoint
-      - from: method
-        to: http_method
-      - from: status_code
-        to: response_code
-  metrics:
-    - http_requests_total
-    - http_request_duration_seconds
-    - database_connections_active
-    - source: go_memstats_alloc_bytes
-      target: memory_allocated
-    - source: process_cpu_seconds_total
-      target: cpu_usage_seconds
-    - source: base_custom_metric_total
-      target: custom_operations
-    - source: prometheus_rule_evaluation_duration_seconds
-      target: rule_evaluation_time
-  metricsPath: /metrics
-  namespace: livecomments
-  sendHistogramsBuckets: true
-  tags:
-    env: production
-    service: livecomments
-    team: backend
-  timeout: 20
-defaultAnnotations: {}
-envVars: {}
-fullnameOverride: ""
-grafana:
-  dashboards:
-    annotations: {}
-    enabled: false
-    folder: Live Comments
-    labels:
-      dashboardSource: livecomments
-      grafanaDashboard: "1"
-hosts:
-  private:
-    domains: []
-    enabled: false
-  public:
-    domains:
-      - livecomments.vf-dev2.org
-    enabled: true
-image:
-  name: livecomments
-  pullPolicy: Always
-  repository: 218894879100.dkr.ecr.us-east-1.amazonaws.com
-  tag: v0.0.1
-imagePullSecrets: []
-istio:
-  ambient:
-    enabled: true
-    namespaceLabels:
-      istio.io/dataplane-mode: ambient
-    waypoint:
-      enabled: false
-      trafficType: service
-  certManager:
-    enabled: false
-    issuer: letsencrypt-prod
-  destinationRule:
-    trafficPolicy:
-      config:
-        connectionPool:
-          http:
-            http1MaxPendingRequests: 64
-            http2MaxRequests: 1000
-            maxRequestsPerConnection: 10
-            maxRetries: 3
-          tcp:
-            connectTimeout: 30s
-            maxConnections: 100
-            tcpKeepalive:
-              interval: 75s
-              time: 7200s
-        loadBalancer:
-          simple: LEAST_CONN
-        outlierDetection:
-          baseEjectionTime: 30s
-          consecutive5xxErrors: 5
-          consecutiveGatewayErrors: 5
-          interval: 30s
-          maxEjectionPercent: 50
-      enabled: false
-  enabled: true
-  faultInjection:
-    configs: {}
-    enabled: false
-  gateway:
-    additionalConfig: {}
-    annotations: {}
-    create: true
-    labels:
-      external-dns: "true"
-    name: ""
-    private:
-      selector:
-        app: istio-private-gateway
-    public:
-      selector:
-        app: istio-public-gateway
-    selector:
-      istio: ingressgateway
-    servers:
-      - enabled: true
-        ports:
-          - name: http
-            number: 80
-            protocol: HTTP
-        tls:
-          config:
-            httpsRedirect: true
-          enabled: true
-      - enabled: true
-        ports:
-          - name: https
-            number: 443
-            protocol: HTTP
-        tls:
-          config:
-            mode: AUTO_PASSTHROUGH
-          enabled: true
-      - enabled: false
-        ports:
-          - name: tcpsocket
-            number: 80
-            protocol: HTTP
-        tls:
-          config:
-            httpsRedirect: true
-          enabled: true
-  globals:
-    annotations: {}
-  sidecar:
-    enabled: false
-    injection:
-      mode: auto
-      namespaceLabel: istio-injection
-      podAnnotation: sidecar.istio.io/inject
-    proxy:
-      config: {}
-      image: ""
-      logLevel: warning
-      resources:
-        limits:
-          cpu: 200m
-          memory: 256Mi
-        requests:
-          cpu: 100m
-          memory: 128Mi
-  virtualService:
-    additionalHttp: []
-    additionalRouteConfig: {}
-    gateways: []
-    host: ""
-livenessProbe:
-  config:
-    failureThreshold: 5
-    httpGet:
-      path: /healthy
-      port: 8080
-      scheme: HTTP
-    initialDelaySeconds: 40
-    periodSeconds: 30
-    successThreshold: 1
-    timeoutSeconds: 10
-  enabled: true
+# yaml-language-server: $schema=values.schema.json
+# Default values for livecomments.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# @schema
+# type: string
+# additionalProperties: false
+# @schema
+# -- Override for chart name generation. When set, replaces the default chart name from Chart.yaml in resource naming
 nameOverride: ""
-networkPolicy:
-  denyAll:
-    enabled: false
-  egress:
-    allowAWSMetadata: true
-    allowDNS: true
-    allowHTTPS: true
-    allowSameNamespace: true
-    customRules: []
-    enabled: false
-  enabled: false
-  ingress:
-    allowIstioGateway: true
-    allowMonitoring: true
-    allowSameNamespace: true
-    customRules: []
-    monitoringNamespace: monitoring
-  monitoring:
-    datadogNamespace: datadog
+
+# @schema
+# type: string
+# additionalProperties: false
+# @schema
+# -- Complete override for resource naming. When set, this exact name is used for all Kubernetes resources instead of generated names
+fullnameOverride: ""
+
+# @schema
+# type: integer
+# exclusiveMinimum: 0
+# maximum: 500
+# @schema
+# -- Number of application pod replicas to maintain for high availability and load distribution
+replicaCount: 1
+
+# @schema
+# additionalProperties: false
+# @schema
+# -- Kubernetes deployment strategy for managing pod updates and ensuring zero-downtime deployments
+strategy:
+  # -- Strategy type: RollingUpdate for gradual replacement, Recreate for immediate replacement
+  type: RollingUpdate
+  rollingUpdate:
+    # -- Maximum extra pods allowed during update (can be number or percentage like "25%")
+    maxSurge: 1
+    # -- Maximum pods that can be unavailable during update to maintain service availability
+    maxUnavailable: 0
+
+# @schema
+# additionalProperties: false
+# @schema
+# -- Container image configuration for the livecomments application
+image:
+  # -- ECR Registry Name
+  name: livecomments
+  # -- Docker image repository URL
+  repository: 218894879100.dkr.ecr.us-east-1.amazonaws.com
+  # @schema
+  # additionalProperties: false
+  # enum: [IfNotPresent,Always,Never]
+  # default: Always
+  # @schema
+  # -- Image pull policy: IfNotPresent (cache locally), Always (always pull), Never (use local only)
+  pullPolicy: Always
+  # -- Specific image tag to deploy. When empty, uses the chart's appVersion from Chart.yaml
+  tag: "v0.0.1"
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- List of secret names containing registry credentials for pulling images from private repositories like AWS ECR
+# Example: [{name: "aws-ecr-secret"}]
+imagePullSecrets: []
+
+# @schema
+# additionalProperties: false
+# @schema
+# -- ServiceAccount configuration for pod identity and AWS IAM integration
+serviceAccount:
+  # -- Create a dedicated ServiceAccount for this application (recommended for security)
+  create: true
+  # -- Automatically mount the ServiceAccount token for API access (required for most applications)
+  automount: true
+  # -- Custom annotations for the ServiceAccount (e.g., for AWS IAM role association)
+  annotations: {}
+  # -- Custom name for the ServiceAccount. If empty, generates from the release name
+  name: ""
+
+  # -- AWS IAM role integration for pod-level permissions via IRSA (IAM Roles for Service Accounts)
+  # Note: Choose either IRSA or Pod Identity, not both
+  iamRole:
+    # -- Enable IAM role association for accessing AWS services like S3, RDS, etc.
     enabled: true
-    prometheusNamespace: monitoring
-nodeSelector: {}
-podAffinity: []
+    # -- ARN of the IAM role to associate with this ServiceAccount
+    # Example: "arn:aws:iam::218894879100:role/livecomments-pod-role"
+    roleArn: ""
+    # -- Specific IAM role name to associate. If empty, uses generated format: {serviceAccount}.{namespace}.pod
+    name: ""
+    # -- AWS Account ID where the IAM role exists
+    accountId: "218894879100"
+
+  # -- AWS Pod Identity integration (newer alternative to IRSA)
+  # Provides simplified IAM role association for pods without requiring OIDC configuration
+  podIdentity:
+    # -- Enable AWS Pod Identity for IAM role association
+    enabled: false
+    # -- ARN of the IAM role to associate with this ServiceAccount
+    # Example: "arn:aws:iam::218894879100:role/livecomments-pod-role"
+    roleArn: ""
+    # -- Name of the Pod Identity Association. If empty, generates from release name
+    associationName: ""
+    # -- AWS Account ID where the IAM role exists
+    accountId: "218894879100"
+    # -- EKS cluster name for Pod Identity Association (required when Pod Identity is enabled)
+    clusterName: ""
+    # -- Use native AWS EKS Pod Identity Association instead of Crossplane CRD
+    useNativeAssociation: false
+
+# @schema
+# type: object
+# additionalProperties: false
+# @schema
+# -- RBAC configuration for pod permissions with the least privilege principle# Example cluster rules:
+# Example custom rules:
+# rbac:
+#   role:
+#     rules:
+#       - apiGroups: [""]
+#         resources: ["configmaps"]
+#         verbs: ["get", "list"]
+#   clusterRole:
+#     rules:
+#       - apiGroups: [""]
+#         resources: ["nodes"]
+#         verbs: ["get", "list"]
+rbac:
+  # -- Enable RBAC resource creation
+  create: true
+
+  # -- Role configuration for namespace-scoped permissions
+  role:
+    # -- Create a Role for namespace-scoped permissions
+    create: true
+    # -- Custom annotations for the Role
+    annotations: {}
+    # -- Custom rules for the Role (will be merged with default minimal rules)
+    # Use this to add additional permissions your application needs
+    rules: []
+
+  # -- ClusterRole configuration for cluster-scoped permissions (use sparingly)
+  clusterRole:
+    # -- Create a ClusterRole for cluster-scoped permissions
+    # Only enable if your application absolutely needs cluster-wide access
+    create: false
+    # -- Custom annotations for the ClusterRole
+    annotations: {}
+    # -- Custom rules for the ClusterRole
+    # Only add rules that require cluster-wide access
+    rules: []
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Global annotations applied to all Kubernetes resources created by this chart
+# Example: {"app.kubernetes.io/owner": "platform-team"}
+defaultAnnotations: {}
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Custom annotations for pods, useful for monitoring, networking, and security policies
+# Example: {"prometheus.io/scrape": "true", "linkerd.io/inject": "enabled"}
 podAnnotations: {}
-podDisruptionBudget:
-  enabled: false
-  maxUnavailable: 1
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Custom labels for pods used for selection, monitoring, and organization
+# Example: {"team": "backend", "component": "event-processor"}
 podLabels: {}
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Pod-level security context for controlling filesystem permissions and system settings
+# Implements security best practices and least privilege principles
+# Example sysctls for high-throughput applications:
+# sysctls:
+#   - name: net.ipv4.ip_local_port_range
+#     value: "2048 64511"
+#   - name: net.core.somaxconn
+#     value: "16384"
 podSecurityContext:
-  fsGroup: 1000
-  fsGroupChangePolicy: OnRootMismatch
-  runAsGroup: 1000
+  # -- Run as non-root user for security
   runAsNonRoot: true
+  # -- Specific user ID to run the container (1000 is typically a safe non-root user)
   runAsUser: 1000
+  # -- Specific group ID for the container
+  runAsGroup: 1000
+  # -- Set filesystem group ownership for volumes
+  fsGroup: 1000
+  # -- Ensure filesystem group ownership changes are applied to volumes
+  fsGroupChangePolicy: "OnRootMismatch"
+  # -- Supplemental groups for the security context
+  supplementalGroups: []
+  # -- Set the seccomp profile to restrict system calls
   seccompProfile:
     type: RuntimeDefault
-  supplementalGroups: []
+  # -- Kernel parameters (sysctls) for pod-level tuning
+  # Common for network stack optimization and connection handling
   sysctls: []
-podSecurityStandards:
-  allowHostPaths: false
-  allowedCapabilities: []
-  allowedHostPaths: []
-  allowedHostPortRanges: []
-  allowedSeccompProfiles: []
-  apparmor:
-    enabled: false
-    profiles: {}
-  compliance:
-    auditLogging:
+
+# @schema
+# additionalProperties: false
+# @schema
+# -- Container-level security context for privilege control and attack surface reduction
+# Implements defense-in-depth security principles
+securityContext:
+  # -- Drop all Linux capabilities for maximum security
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  # -- Prevent running as root user
+  runAsNonRoot: true
+  # -- Specific user ID to run the container
+  runAsUser: 1000
+  # -- Specific group ID for the container
+  runAsGroup: 1000
+  # -- Prevent privilege escalation
+  allowPrivilegeEscalation: false
+  # -- Set the seccomp profile to restrict system calls
+  seccompProfile:
+    type: RuntimeDefault
+
+# @schema
+# additionalProperties: false
+# @schema
+# -- CPU and memory resource management for predictable performance and cluster stability
+# Resource allocation ensures:
+# - Predictable performance through guaranteed resources (requests)
+# - Protection against resource exhaustion through limits
+# - Proper scheduling and bin-packing by Kubernetes scheduler
+# Memory calculation for JVM applications:
+# - Heap memory: Application objects and data
+# - Non-heap: ~20-25% of heap (metaspace, code cache, etc.)
+# - Direct memory: Off-heap buffers, typically matches heap size
+# - Safety buffer: 20% overhead for OS and container
+resources:
+  limits:
+    # -- Maximum CPU cores (1 core = 1000m). Throttles CPU usage to prevent noisy neighbor issues
+    cpu: "500m"
+    # -- Maximum memory including heap, non-heap, and direct memory. Prevents OOM kills
+    memory: "512Mi"
+  requests:
+    # -- Guaranteed CPU allocation for consistent performance. Used by scheduler for placement
+    cpu: "100m"
+    # -- Guaranteed memory allocation. Should match limits for memory-intensive applications
+    memory: "256Mi"
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Kubernetes Service configuration for network access and load balancing
+service:
+  # -- Short alias name used for service discovery and internal routing
+  alias: livecomments
+  # -- Full service name for DNS resolution within the cluster
+  name: livecomments
+  # -- Service Annotations
+  annotations: {}
+  # -- Named port for the main HTTP service endpoint
+  portName: http
+  # -- Network protocol: TCP for HTTP/WebSocket, UDP for streaming protocols
+  protocol: TCP
+  # -- Service type: ClusterIP (internal), LoadBalancer (external), NodePort (development)
+  type: ClusterIP
+  # -- External port exposed by the Service for client connections
+  port: 8080
+  # -- Internal port the container listens on for incoming requests
+  targetPort: 8080
+  # -- NodePort for development/debugging (only when type is NodePort)
+  nodePort:
+  # -- Additional container ports configuration (JMX, metrics)
+  containerPorts:
+    # -- JMX (Java Management Extensions) port for JVM monitoring and management
+    jmx:
+      # -- Enable JMX port for Java application monitoring with tools like JConsole, VisualVM
+      enabled: false
+      # -- Expose JMX port through the main Service (false for security - use port-forwarding instead)
+      exposeService: false
+      # -- Named port identifier for JMX endpoint
+      containerPortName: jmx
+      # -- Port number for JMX connections (standard JMX port range)
+      containerPort: 9016
+      # -- Protocol for JMX communication (typically TCP)
+      containerProtocol: TCP
+    # -- Prometheus metrics port for application performance monitoring
+    metrics:
+      # -- Enable metrics endpoint for Prometheus scraping and monitoring dashboards
       enabled: true
-      levels:
-        - warn
-        - error
-    enabled: true
-    frameworks:
-      - pod-security-standards
-      - cis-kubernetes
-      - nist-cybersecurity
-  createPodSecurityPolicy: false
-  createSecurityContextConstraints: false
+      # -- Expose metrics port through Service for ServiceMonitor discovery
+      exposeService: true
+      # -- Named port identifier for metrics endpoint
+      containerPortName: metrics
+      # -- Port number for Prometheus metrics scraping (/metrics endpoint)
+      containerPort: 5555
+      # -- Protocol for metrics communication
+      containerProtocol: TCP
+
+# @schema
+# additionalProperties: true
+# @schema
+# Health check configuration for automatic failure detection and recovery
+# -- Liveness probe determines if the container is healthy and should be restarted if failing
+# Used for detecting deadlocks, infinite loops, or unrecoverable application states
+livenessProbe:
   enabled: true
-  level: restricted
-rbac:
-  clusterRole:
-    annotations: {}
-    create: false
-    rules: []
-  create: true
-  role:
-    annotations: {}
-    create: true
-    rules: []
-readinessProbe:
   config:
-    failureThreshold: 5
+    # -- HTTP health check endpoint that returns 200 OK when application is functioning
     httpGet:
       path: /healthy
       port: 8080
       scheme: HTTP
-    initialDelaySeconds: 60
-    periodSeconds: 10
+    # -- Wait time before starting health checks to allow application startup (JVM warmup, dependency connections)
+    initialDelaySeconds: 40
+    # -- Number of consecutive check failures before restarting the container (prevents flapping)
+    failureThreshold: 5
+    # -- Frequency of health checks during normal operation
+    periodSeconds: 30
+    # -- Number of consecutive successes to mark container as healthy again after failure
     successThreshold: 1
+    # -- Maximum time to wait for health check response before marking as failed
+    timeoutSeconds: 10
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Readiness probe determines if the container can accept traffic (added/removed from Service endpoints)
+# Used for controlling traffic flow during startup, rolling updates, and temporary unavailability
+readinessProbe:
+  enabled: true
+  config:
+    # -- HTTP endpoint check to verify application is ready to serve requests
+    httpGet:
+      path: /healthy
+      port: 8080
+      scheme: HTTP
+    # -- Delay before starting readiness checks (should be less than liveness to avoid restart loops)
+    initialDelaySeconds: 60
+    # -- Number of consecutive successes required to mark pod as ready for traffic
+    successThreshold: 1
+    # -- Number of consecutive failures before removing pod from Service load balancing
+    failureThreshold: 5
+    # -- Frequency of readiness checks (more frequent than liveness for responsive traffic management)
+    periodSeconds: 10
+    # -- Timeout for readiness check response
     timeoutSeconds: 5
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Startup probe protects slow-starting containers from being killed by liveness probe during initialization
+# Gives applications extended time to complete startup procedures like database migrations, cache warming
+startupProbe:
   enabled: true
-replicaCount: 1
-resources:
-  limits:
-    cpu: 500m
-    memory: 512Mi
-  requests:
-    cpu: 100m
-    memory: 256Mi
-rollout:
-  analysis:
-    count: 3
+  config:
+    # -- HTTP endpoint to verify application has completed startup initialization
+    httpGet:
+      path: /healthy
+      port: 8080
+      scheme: HTTP
+    # -- Delay before first startup check (minimal since this probe handles slow startups)
+    initialDelaySeconds: 15
+    # -- Maximum startup check failures allowed (total startup time = failureThreshold * periodSeconds)
+    failureThreshold: 30
+    # -- Frequency of startup checks during application initialization
+    periodSeconds: 10
+    # -- Single success marks startup complete, enabling liveness/readiness probes
+    successThreshold: 1
+    # -- Timeout for startup check response
+    timeoutSeconds: 5
+
+# @schema
+# additionalProperties: true
+# autoscaling:
+# @schema
+# -- Horizontal Pod Autoscaler for automatic scaling based on resource utilization and custom metrics
+autoscaling:
+  # -- Enable automatic pod scaling to handle varying traffic loads
+  enabled: false
+  # -- Minimum pod count to maintain for baseline capacity and availability
+  minReplicas: 5
+  # -- Maximum pod count to prevent resource exhaustion and cost overruns
+  maxReplicas: 100
+  # -- CPU utilization threshold
+  targetCPUUtilizationPercentage: 33
+  # targetMemoryUtilizationPercentage: 80  # Uncomment for memory-based scaling
+
+  # @schema
+  # additionalProperties: true
+  # externalMetrics:
+  # @schema
+  # -- External metrics from Prometheus for custom scaling decisions
+  externalMetrics:
+    # -- Use external metrics like connection count, queue depth, or response time for scaling
     enabled: false
-    failureLimit: 1
-    interval: 1m
-    prometheus:
-      address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
-    responseTimeThreshold: 500
-    startingStep: 2
-    successCondition: 0.99
-    templates:
-      - templateName: success-rate
+    # -- Prometheus metric name for active connection count monitoring
+    connectionMetricName: base_connections_current
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # -- Horizontal Pod Autoscaler Behavior
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+      selectPolicy: Max
+
+# @schema
+# additionalProperties: true
+# volumes:
+# @schema
+# -- Additional volumes for configuration files, secrets, or persistent storage
+# Includes default temporary volumes for read-only filesystem compatibility
+# Additional volume examples:
+# - name: config-volume       # ConfigMap volume
+#   configMap:
+#     name: app-config
+# - name: secret-volume       # Secret volume for certificates
+#   secret:
+#     secretName: tls-certs
+#     optional: false
+# - name: shared-storage      # Persistent volume
+#   persistentVolumeClaim:
+#     claimName: shared-data
+volumes: []
+
+# @schema
+# additionalProperties: true
+# volumeMounts:
+# @schema
+# -- Mount points for additional volumes inside the container filesystem
+# Includes default mounts for read-only filesystem compatibility
+# Default volume mounts for read-only root filesystem
+# Additional mount examples:
+# - name: config-volume
+#   mountPath: "/app/config"       # Application configuration directory
+#   readOnly: true
+# - name: secret-volume
+#   mountPath: "/etc/ssl/certs"    # SSL certificate location
+#   readOnly: true
+# - name: shared-storage
+#   mountPath: "/shared"           # Shared data directory
+#   readOnly: false
+volumeMounts: []
+
+# @schema
+# arch:
+#   type: string
+#   enum: ["amd64", "arm64"]
+# @schema
+# -- Target CPU architecture for container scheduling and node selection
+# Ensures pods run on compatible nodes (amd64 for Intel/AMD, arm64 for ARM processors)
+arch: amd64
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Pod Disruption Budget to maintain availability during cluster maintenance and updates
+podDisruptionBudget:
+  # -- Enable Pod Disruption Budget
+  enabled: false
+  # -- Maximum pods that can be unavailable during voluntary disruptions (node drains, updates)
+  maxUnavailable: 1
+  # Alternative: minAvailable: 1  # Minimum pods that must remain available
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Node selector labels for scheduling pods on specific nodes with required characteristics
+# Use for dedicated nodes, specific hardware, or compliance requirements
+# Examples:
+# dedicated: livecomments
+# Dedicated node pool
+# node-type: compute-optimized       # High-performance nodes
+# zone: us-east-1a                   # Specific availability zone
+nodeSelector: {}
+
+# @schema
+# additionalProperties: true
+# type: array
+# @schema
+# -- Tolerations allow pods to schedule on nodes with matching taints
+# Used for dedicated nodes, special hardware, or workload isolation
+tolerations: []
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Advanced pod scheduling rules for controlling pod placement relative to other pods and nodes
+# Provides fine-grained control over where pods are scheduled in the cluster for performance, compliance, and availability requirements.
+# Use cases:
+# - Co-location: Schedule pods near each other (e.g., app with cache)
+# - Anti-affinity: Spread pods across nodes/zones for high availability
+# - Node affinity: Target specific hardware, zones, or node types
+# - Mixed workload isolation: Separate different application tiers
+# Example configurations:
+# # Pod Anti-Affinity: Spread pods across different nodes for high availability
+# podAntiAffinity:
+#   preferredDuringSchedulingIgnoredDuringExecution:
+#     - weight: 100
+#       podAffinityTerm:
+#         labelSelector:
+#           matchExpressions:
+#             - key: app.kubernetes.io/name
+#               operator: In
+#               values:
+#                 - livecomments
+#         topologyKey: kubernetes.io/hostname
+#
+# # Zone Anti-Affinity: Distribute pods across availability zones
+# podAntiAffinity:
+#   preferredDuringSchedulingIgnoredDuringExecution:
+#     - weight: 80
+#       podAffinityTerm:
+#         labelSelector:
+#           matchLabels:
+#             app.kubernetes.io/name: livecomments
+#         topologyKey: topology.kubernetes.io/zone
+#
+# # Node Affinity: Prefer compute-optimized nodes for CPU-intensive workloads
+# nodeAffinity:
+#   preferredDuringSchedulingIgnoredDuringExecution:
+#     - weight: 100
+#       preference:
+#         matchExpressions:
+#           - key: node-type
+#             operator: In
+#             values:
+#               - compute-optimized
+#               - cpu-optimized
+#
+# # Required Node Affinity: Must run on nodes with SSD storage
+# nodeAffinity:
+#   requiredDuringSchedulingIgnoredDuringExecution:
+#     nodeSelectorTerms:
+#       - matchExpressions:
+#           - key: storage-type
+#             operator: In
+#             values:
+#               - ssd
+#
+# # Pod Affinity: Co-locate with Redis cache for low latency
+# podAffinity:
+#   preferredDuringSchedulingIgnoredDuringExecution:
+#     - weight: 100
+#       podAffinityTerm:
+#         labelSelector:
+#           matchLabels:
+#             app: redis
+#         topologyKey: kubernetes.io/hostname
+affinity: {}
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Pod affinity configuration rules
+# - enabled: true
+#   weight: 100
+#   topologyKey: "kubernetes.io/hostname"
+#   excludeStable: false # Set to true if you want anti-affinity between canary and stable
+
+#   # For high traffic scenarios
+#   highTrafficMode:
+#     enabled: false
+#     weight: 50
+
+# - enabled: true
+#   weight: 80
+#   excludeStable: false # Set to true if you want anti-affinity between canary and stable
+#   topologyKey: "topology.kubernetes.io/zone"
+
+#   # For high traffic scenarios
+#   highTrafficMode:
+#     enabled: false
+#     weight: 30
+podAffinity: []
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Topology spread constraints for pod distribution
+# - enabled: true
+#   maxSkew: 1
+#   topologyKey: "topology.kubernetes.io/zone"
+#   whenUnsatisfiable: "ScheduleAnyway"
+
+#   # For high traffic scenarios
+#   highTrafficMode:
+#     enabled: false # Can be toggled via Helm values override
+topologySpreadConstraints: []
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Environment variables for runtime configuration and JVM tuning
+# -- JVM configuration for memory management, garbage collection, and security
+# Memory settings: heap (128m initial and max)
+# Security: disable log4j lookups to prevent log4shell vulnerability
+envVars: {}
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Environment variables loaded from ConfigMaps for non-sensitive configuration
+# Useful for feature flags, API endpoints, logging levels, and operational settings
+# Example configuration:
+# LOG_LEVEL: INFO                     # Application logging verbosity
+# DEBUG_MODE: "false"                 # Enable debug features
+# API_TIMEOUT: "30s"                  # External API timeout
+# CACHE_TTL: "300"                    # Cache time-to-live in seconds
+configMapEnvVars: {}
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- ConfigMap files for application configuration, properties, and settings
+# Files are mounted to /var/migrator/jetty/resources via projected volume (optional, read-only)
+# Combined with secrets in a single mount point for unified configuration access
+configMap: {}
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Environment variables loaded from Secrets for sensitive configuration
+# Use for passwords, API keys, tokens, and other confidential data
+# Example sensitive configuration:
+# DATABASE_PASSWORD: postgres-password   # Database connection password
+# API_TOKEN: external-service-token      # Third-party API authentication
+# JWT_SECRET: signing-key                # Token signing secret
+# ENCRYPTION_KEY: data-encryption-key    # Data encryption key
+secretsEnvVars: {}
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Kubernetes Secret data for storing sensitive information securely
+# Values are automatically base64 encoded and encrypted at rest
+# Files are mounted to /var/migrator/jetty/resources via projected volume (optional, read-only)
+# Combined with configMap in a single mount point for unified configuration access
+# Example sensitive data:
+# database-password: "supersecret123"    # Database credentials
+# api-key: "sk-1234567890abcdef"         # External API key
+# tls-cert: "-----BEGIN CERTIFICATE----" # TLS certificate
+# signing-key: "private-key-content"     # JWT signing key
+secrets: {}
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Argo Rollout configuration for advanced deployment strategies
+rollout:
+  # -- Whether to enable Argo Rollouts
   enabled: true
+
+  # -- Number of old ReplicaSets to retain for rollback
   revisionHistoryLimit: 10
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # -- Rollout strategy configuration
   strategy:
+    # @schema
+    # additionalProperties: true
+    # blueGreen:
+    # @schema
+    # -- Blue-Green deployment strategy
     blueGreen:
-      autoPromotionEnabled: false
-      autoPromotionSeconds: 30
+      # -- Whether to enable blue-green deployments
       enabled: false
-      previewReplicaCount: null
+      # -- Whether to automatically promote new versions
+      autoPromotionEnabled: false
+      # -- Seconds to wait before auto-promotion
+      autoPromotionSeconds: 30
+      # -- Number of preview replicas (null uses main replica count)
+      previewReplicaCount:
+      # -- Seconds to wait before scaling down old version
       scaleDownDelaySeconds: 30
+
+    # -- Canary deployment strategy
+    # @schema
+    # additionalProperties: true
+    # canary:
+    # @schema
     canary:
+      # -- Whether to enable canary deployments
       enabled: true
+      # @schema
+      # additionalProperties: true
+      # trafficRouting:
+      # @schema
+      # -- Istio traffic routing configuration for canary
+      trafficRouting:
+        # @schema
+        # additionalProperties: true
+        # istio:
+        # @schema
+        istio:
+          # @schema
+          # additionalProperties: true
+          # virtualService:
+          # @schema
+          virtualService:
+            name: ""  # Will be set via tpl in rollout template
+            routes:
+              - primary
+          destinationRule:
+            name: ""  # Will be set via tpl in rollout template
+            canarySubsetName: canary
+            stableSubsetName: stable
+      # @schema
+      # additionalProperties: true
+      # managedRoutes:
+      # @schema
+      # -- Routes managed by the rollout controller
       managedRoutes: []
-      maxSurge: 10%
-      maxUnavailable: 0
+      # @schema
+      # additionalProperties: true
+      # steps:
+      # @schema
+      # -- Canary deployment steps with traffic weights and pauses
       steps:
         - setWeight: 1
         - pause: {}
@@ -505,98 +768,834 @@ rollout:
             duration: 10m
         - setWeight: 100
         - pause: {}
-      trafficRouting:
-        istio:
-          destinationRule:
-            canarySubsetName: canary
-            name: ""
-            stableSubsetName: stable
-          virtualService:
-            name: ""
-            routes:
-              - primary
-secrets: {}
-secretsEnvVars: {}
-securityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-  readOnlyRootFilesystem: true
-  runAsGroup: 1000
-  runAsNonRoot: true
-  runAsUser: 1000
-  seccompProfile:
-    type: RuntimeDefault
-service:
-  alias: livecomments
-  annotations: {}
-  containerPorts:
-    jmx:
-      containerPort: 9016
-      containerPortName: jmx
-      containerProtocol: TCP
-      enabled: false
-      exposeService: false
-    metrics:
-      containerPort: 5555
-      containerPortName: metrics
-      containerProtocol: TCP
-      enabled: true
-      exposeService: true
-  name: livecomments
-  nodePort: null
-  port: 8080
-  portName: http
-  protocol: TCP
-  targetPort: 8080
-  type: ClusterIP
-serviceAccount:
-  annotations: {}
-  automount: true
-  create: true
-  iamRole:
-    accountId: "218894879100"
-    enabled: true
-    name: ""
-    roleArn: ""
-  name: ""
-  podIdentity:
-    accountId: "218894879100"
-    associationName: ""
-    clusterName: ""
+      maxUnavailable: 0
+
+      # -- Maximum number of surge pods during canary
+      maxSurge: 10%
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # -- Analysis configuration for automated rollout decisions
+  analysis:
+    # -- Whether to enable rollout analysis
     enabled: false
-    roleArn: ""
-    useNativeAssociation: false
+    # -- Number of analysis runs to perform
+    count: 3
+    # -- Number of failures before rollback
+    failureLimit: 1
+    # -- Interval between analysis runs
+    interval: 1m
+    # -- Response time threshold in milliseconds
+    responseTimeThreshold: 500
+    # -- Step at which to start analysis
+    startingStep: 2
+    # -- Success condition threshold (0.99 = 99% success rate)
+    successCondition: 0.99
+    # -- Prometheus configuration for metrics collection
+    prometheus:
+      # -- Prometheus server address
+      address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+    # -- Analysis templates to use
+    templates:
+      - templateName: success-rate
+
+# @schema
+# additionalProperties: false
+# @schema
+# -- Domain configuration for external access through Istio service mesh
+hosts:
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # -- Public domains accessible from the internet for client connections
+  public:
+    enabled: true
+    # @schema
+    # type: array
+    # additionalProperties: true
+    # @schema
+    domains:
+      - livecomments.vf-dev2.org
+
+  # @schema
+  # additionalProperties: true
+  # @schema
+  # -- Internal/Private Domains not accessible from the internet for client connections
+  private:
+    enabled: false
+    # @schema
+    # type: array
+    # additionalProperties: true
+    # @schema
+    # -- Internal/Private Domains not accessible from the internet for client connections
+    domains: []
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Istio service mesh configuration
+istio:
+  # -- Whether to enable Istio service mesh
+  enabled: true
+  # -- Global Istio configurations
+  globals:
+    # -- Global annotations for Istio resources
+    annotations: {}
+  # -- Ambient Mode configuration for ztunnel and waypoint proxies
+  ambient:
+    # -- Whether to enable Ambient Mode (ztunnel mesh)
+    enabled: true
+    # -- Namespace labels for ambient mode enrollment
+    namespaceLabels:
+      istio.io/dataplane-mode: ambient
+    # -- Waypoint proxy configuration for L7 features
+    waypoint:
+      # -- Whether to create a waypoint proxy for this service
+      enabled: false
+      # -- Traffic type for waypoint (service or workload)
+      trafficType: service
+
+  # -- Sidecar Mode configuration for envoy proxy injection
+  sidecar:
+    # -- Whether to enable Sidecar Mode (envoy proxy injection)
+    enabled: false
+    # -- Sidecar injection configuration
+    injection:
+      # -- Sidecar injection mode (auto, enabled, disabled)
+      mode: auto
+      # -- Pod-level sidecar injection annotation
+      podAnnotation: sidecar.istio.io/inject
+      # -- Namespace-level sidecar injection label
+      namespaceLabel: istio-injection
+    # -- Sidecar proxy configuration
+    proxy:
+      # -- Custom proxy configuration
+      config: {}
+      # -- Resource limits for sidecar proxy
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+      # -- Sidecar proxy image (uses Istio default if empty)
+      image: ""
+      # -- Sidecar proxy log level
+      logLevel: warning
+
+  # -- Certificate Manager integration
+  certManager:
+    # -- Whether to enable cert-manager for TLS certificates
+    enabled: false
+    # -- Certificate issuer to use
+    issuer: "letsencrypt-prod"
+
+  # -- Istio Gateway configuration
+  gateway:
+    # -- Whether to create an Istio Gateway
+    create: true
+    # -- Gateway name (generated if empty)
+    name: ""
+    # -- Gateway annotations
+    annotations: {}
+    # -- Gateway Labels
+    labels:
+      external-dns: "true"
+    # -- Gateway selector
+    selector:
+      istio: "ingressgateway"
+
+    # -- Private Gateway selector to exposure service for private traffic
+    private:
+      selector:
+        app: "istio-private-gateway"
+
+    # -- Public Gateway selector to exposure service for public traffic
+    public:
+      selector:
+        app: "istio-public-gateway"
+
+    # -- Gateway server configurations
+    servers:
+      # -- Whether this server configuration is enabled
+      - enabled: true
+        # -- Port configurations
+        ports:
+          - number: 80
+            name: http
+            protocol: HTTP
+
+        # -- TLS configuration
+        tls:
+          # -- Whether TLS is enabled
+          enabled: true
+          # -- TLS configuration options
+          config:
+            # -- Whether to redirect HTTP to HTTPS
+            httpsRedirect: true
+
+      # -- Whether this server configuration is enabled
+      - enabled: true
+        # -- Port configurations for HTTPS
+        ports:
+          - number: 443
+            name: https
+            protocol: HTTP
+        # -- TLS configuration for HTTPS
+        tls:
+          # -- Whether TLS is enabled
+          enabled: true
+          # -- TLS configuration options
+          config:
+            # -- TLS mode (AUTO_PASSTHROUGH, SIMPLE, etc.)
+            mode: AUTO_PASSTHROUGH
+
+      # -- Whether this server configuration is enabled
+      - enabled: false
+        # -- Port configurations
+        ports:
+          - number: 80
+            name: tcpsocket
+            protocol: HTTP
+        # -- TLS configuration
+        tls:
+          # -- Whether TLS is enabled
+          enabled: true
+          # -- TLS configuration options
+          config:
+            # -- Whether to redirect HTTP to HTTPS
+            httpsRedirect: true
+
+    # -- Additional gateway configuration options
+    additionalConfig: {}
+
+  # -- Istio VirtualService configuration
+  virtualService:
+    # -- Host for the VirtualService (defaults to service name)
+    host: ""
+    # -- Gateways to attach to the VirtualService
+    gateways: []
+    # -- Additional route configuration
+    additionalRouteConfig: {}
+    # -- Additional HTTP routes
+    additionalHttp: []
+
+  # -- Istio DestinationRule configuration
+  destinationRule:
+    # -- Traffic policy for load balancing and connection pooling
+    trafficPolicy:
+      enabled: false
+      config:
+        connectionPool:
+          tcp:
+            maxConnections: 100
+            connectTimeout: 30s
+            tcpKeepalive:
+              time: 7200s
+              interval: 75s
+          http:
+            http1MaxPendingRequests: 64
+            http2MaxRequests: 1000
+            maxRequestsPerConnection: 10
+            maxRetries: 3
+        loadBalancer:
+          simple: LEAST_CONN
+        outlierDetection:
+          consecutiveGatewayErrors: 5
+          consecutive5xxErrors: 5
+          interval: 30s
+          baseEjectionTime: 30s
+          maxEjectionPercent: 50
+
+  # -- Fault injection configuration for testing
+  faultInjection:
+    # -- Whether to enable fault injection
+    enabled: false
+    # -- Fault injection configurations
+    configs: {}
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- ServiceMonitor configuration for Prometheus metrics collection
 serviceMonitor:
+  # -- Whether to enable ServiceMonitor for Prometheus scraping
   enabled: true
-  interval: 10s
-  labels: {}
+  # -- Namespace where ServiceMonitor should be deployed (if different from app namespace)
   namespace: ""
-  namespaceSelector:
-    any: false
-    matchNames: []
-  path: /metrics
+  # -- Prometheus release name for ServiceMonitor
   prometheusReleaseName: kube-prometheus-stack
+  # -- Scraping interval for metrics
+  interval: 10s
+  # -- Scraping timeout for metrics (should be less than interval)
   scrapeTimeout: 5s
-startupProbe:
-  config:
-    failureThreshold: 30
-    httpGet:
-      path: /healthy
-      port: 8080
-      scheme: HTTP
-    initialDelaySeconds: 15
-    periodSeconds: 10
-    successThreshold: 1
-    timeoutSeconds: 5
+  # -- Metrics endpoint path
+  path: /metrics
+  # @schema
+  # additionalProperties: true
+  # labels:
+  # @schema
+  # -- Additional labels for ServiceMonitor
+  labels: {}
+  # -- Namespace selector configuration for cross-namespace monitoring
+  namespaceSelector:
+    # -- Enable any namespace selector (allows monitoring across namespaces)
+    any: false
+    # -- Specific namespaces to monitor (leave empty for current namespace only)
+    matchNames: []
+
+# @schema
+# additionalProperties: false
+# @schema
+# -- Datadog configuration
+# Alternative configuration for collecting all metrics
+# additionalProperties: true
+# datadog:
+#   enabled: true
+#   containerName: "livecomments"
+#   namespace: "livecomments"
+#   metricsPath: "/metrics"
+#   collectAllMetrics: true
+#   ignoreMetrics:
+#     - "go_.*"
+#     - "process_.*"
+#     - "prometheus_.*"
+#   tags:
+#     - "env:production"
+#     - "service:livecomments"
+datadog:
+  # -- Enable/disable Datadog monitoring
   enabled: true
-strategy:
-  rollingUpdate:
-    maxSurge: 1
-    maxUnavailable: 0
-  type: RollingUpdate
-tolerations: []
-topologySpreadConstraints: []
-volumeMounts: []
-volumes: []
+
+  # -- Container name (should match your main container name)
+  containerName: "livecomments"
+
+  # -- Namespace prefix for metrics in Datadog
+  namespace: "livecomments"
+
+  # -- Metrics endpoint path
+  metricsPath: "/metrics"
+
+  # -- Collect all metrics (if true, ignores specific metrics list)
+  collectAllMetrics: true
+
+  # -- Timeout for metric collection
+  timeout: 20
+
+  # -- Enable health service check
+  healthServiceCheck: true
+
+  # -- Send histogram buckets
+  sendHistogramsBuckets: true
+
+  # -- Collect histogram buckets
+  collectHistogramBuckets: true
+
+  # -- Specific metrics to collect with transformations
+  # Can be either strings (collect as-is) or objects (rename)
+  metrics:
+    # Collect these metrics as-is
+    - "http_requests_total"
+    - "http_request_duration_seconds"
+    - "database_connections_active"
+    - source: "go_memstats_alloc_bytes"
+      target: "memory_allocated"
+    - source: "process_cpu_seconds_total"
+      target: "cpu_usage_seconds"
+    - source: "base_custom_metric_total"
+      target: "custom_operations"
+    - source: "prometheus_rule_evaluation_duration_seconds"
+      target: "rule_evaluation_time"
+
+  # -- Metrics to ignore/exclude
+  ignoreMetrics:
+    - "go_gc_.*"
+    - "go_goroutines"
+    - "process_.*_bytes"
+    - "prometheus_.*"
+    - "up"
+
+  metricTransformations:
+    labels:
+      - from: "handler"
+        to: "endpoint"
+      - from: "method"
+        to: "http_method"
+      - from: "status_code"
+        to: "response_code"
+
+  # -- Additional tags to add to all metrics
+  # Note: version tag will be automatically replaced with the actual app version from Chart.yaml or image.tag
+  tags:
+    env: production
+    team: backend
+    service: livecomments
+
+  logs:
+    enabled: true
+    source: "livecomments"
+    service: "livecomments"
+
+    # Log processing rules
+    logProcessingRules:
+      - type: "exclude_at_match"
+        name: "exclude_health_checks"
+        pattern: "GET /health"
+      - type: "mask_sequences"
+        name: "mask_credit_cards"
+        pattern: "\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}"
+        replacement: "****-****-****-****"
+
+  # -- JMX (Java Management Extensions) integration configuration
+  # Complete configuration for JMX monitoring with Datadog Agent
+  jmx:
+    # -- JMX connection URL (auto-generated if not provided)
+    # Example: "service:jmx:rmi:///jndi/rmi://%%host%%:9016/jmxrmi"
+    jmxUrl: ""
+    
+    # -- JMX authentication username
+    user: ""
+    
+    # -- JMX authentication password (store in secret for production)
+    password: ""
+    
+    # -- Whether this is a JMX integration (default: true when jmx integration is selected)
+    isJmx: true
+    
+    # -- Collect default JMX metrics (heap, threads, GC, etc.)
+    collectDefaultMetrics: true
+    
+    # -- Process name regex for JMX connection discovery
+    # Example: ".*java.*livecomments.*"
+    processNameRegex: ""
+    
+    # -- Custom tools.jar path for JMX tools
+    tools_jar_path: ""
+    
+    # -- Custom name identifier for this JMX instance
+    name: ""
+    
+    # -- Custom Java binary path
+    java_bin_path: ""
+    
+    # -- JVM options for JMX connection
+    # Example: "-Xms64m -Xmx128m"
+    java_options: ""
+    
+    # -- SSL/TLS trust store path for secure JMX connections
+    trust_store_path: ""
+    
+    # -- SSL/TLS trust store password
+    trust_store_password: ""
+    
+    # -- SSL/TLS key store path for client certificates
+    key_store_path: ""
+    
+    # -- SSL/TLS key store password
+    key_store_password: ""
+    
+    # -- Enable SSL for RMI registry connections
+    rmi_registry_ssl: false
+    
+    # -- RMI connection timeout in milliseconds
+    rmi_connection_timeout: 20000
+    
+    # -- RMI client timeout in milliseconds
+    rmi_client_timeout: 15000
+    
+    # -- Collect default JVM metrics (memory, GC, threads)
+    collect_default_jvm_metrics: true
+    
+    # -- Enable new garbage collection metrics format
+    new_gc_metrics: true
+    
+    # -- Custom service check prefix for JMX health checks
+    service_check_prefix: "jmx"
+    
+    # -- Custom metric configuration for JMX beans
+    # Define specific MBeans and attributes to collect
+    conf:
+      # Example JMX metric collection configuration
+      - include:
+          domain: "java.lang"
+          type: "Memory"
+          attribute:
+            HeapMemoryUsage:
+              alias: "jvm.heap_memory"
+              metric_type: "gauge"
+            NonHeapMemoryUsage:
+              alias: "jvm.non_heap_memory"
+              metric_type: "gauge"
+
+      - include:
+          domain: "java.lang"
+          type: "GarbageCollector"
+          name: "*"
+          attribute:
+            CollectionCount:
+              alias: "jvm.gc.cms.count"
+              metric_type: "counter"
+            CollectionTime:
+              alias: "jvm.gc.cms.time"
+              metric_type: "counter"
+
+      - include:
+          domain: "java.lang"
+          type: "Threading"
+          attribute:
+            ThreadCount:
+              alias: "jvm.thread_count"
+              metric_type: "gauge"
+            DaemonThreadCount:
+              alias: "jvm.daemon_thread_count"
+              metric_type: "gauge"
+
+      # Application-specific MBeans (customize for your application)
+      - include:
+          domain: "com.your.app"
+          type: "ConnectionPool"
+          attribute:
+            ActiveConnections:
+              alias: "app.db.active_connections"
+              metric_type: "gauge"
+            IdleConnections:
+              alias: "app.db.idle_connections"
+              metric_type: "gauge"
+
+  # -- Custom integration configuration
+  # For integrations other than openmetrics or jmx
+  instanceConfig: {}
+  # Example custom integration:
+  # host: "%%host%%"
+  # port: 8080
+  # username: "monitor"
+  # password: "secret"
+  # ssl: true
+  # timeout: 30
+
+  # -- Integration type: openmetrics, jmx, or custom
+  # openmetrics: For Prometheus-style metrics endpoints
+  # jmx: For Java Management Extensions monitoring
+  # custom: For other monitoring integrations
+  integration: "jmx"
+
+  # -- Custom init configuration for the integration
+  # Additional configuration passed to the integration's init_config
+  initConfig: {}
+
+  # -- APM (Application Performance Monitoring) configuration
+  apm:
+    enabled: false
+    serviceName: "livecomments"
+    environment: "production"
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- NetworkPolicy configuration for defense-in-depth network security
+# Implements zero-trust networking with explicit allow rules for required communication
+networkPolicy:
+  # -- Enable NetworkPolicy creation for enhanced network security
+  enabled: false
+
+  # -- Deny-all baseline policy configuration
+  denyAll:
+    # -- Create a deny-all NetworkPolicy as security baseline (recommended for production)
+    enabled: false
+
+  # -- Ingress traffic rules configuration
+  ingress:
+    # -- Allow ingress from pods within the same namespace
+    allowSameNamespace: true
+    # -- Allow ingress from Istio Gateway for service mesh traffic
+    allowIstioGateway: true
+    # -- Allow ingress from monitoring namespace for metrics collection
+    allowMonitoring: true
+    # -- Name of the monitoring namespace (default: monitoring)
+    monitoringNamespace: "monitoring"
+    # -- Custom ingress rules for specific traffic requirements
+    customRules: []
+    # Example custom rules:
+    # - namespaceSelector:
+    #     matchLabels:
+    #       name: "api-gateway"
+    #   ports:
+    #     - protocol: TCP
+    #       port: 8080
+    # - ipBlock:
+    #     cidr: "10.0.0.0/8"
+    #   ports:
+    #     - protocol: TCP
+    #       port: 8080
+
+  # -- Egress traffic rules configuration
+  egress:
+    # -- Enable egress policies (when false, all egress is allowed)
+    enabled: false
+    # -- Allow DNS resolution (required for service discovery)
+    allowDNS: true
+    # -- Allow HTTPS traffic to internet (for external APIs, image pulls)
+    allowHTTPS: true
+    # -- Allow traffic within the same namespace
+    allowSameNamespace: true
+    # -- Allow access to AWS metadata service (required for AWS integrations)
+    allowAWSMetadata: true
+    # -- Custom egress rules for specific external services
+    customRules: []
+    # Example custom rules:
+    # - namespaceSelector:
+    #     matchLabels:
+    #       name: "database"
+    #   ports:
+    #     - protocol: TCP
+    #       port: 5432
+    # - ipBlock:
+    #     cidr: "192.168.1.0/24"
+    #   ports:
+    #     - protocol: TCP
+    #       port: 443
+
+  # -- Monitoring-specific NetworkPolicy configuration
+  monitoring:
+    # -- Create dedicated NetworkPolicy for monitoring access
+    enabled: true
+    # -- Prometheus namespace for metrics scraping
+    prometheusNamespace: "monitoring"
+    # -- Datadog namespace for agent access
+    datadogNamespace: "datadog"
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Pod Security Standards configuration for compliance automation
+# Implements Kubernetes Pod Security Standards for enhanced security posture
+podSecurityStandards:
+  # -- Enable Pod Security Standards compliance features
+  enabled: true
+
+  # -- Pod Security Standards level: privileged, baseline, or restricted
+  # restricted: Most secure, suitable for security-critical applications
+  # baseline: Minimally restrictive, prevents known privilege escalations
+  # privileged: Unrestricted, suitable for system-level workloads
+  level: "restricted"
+
+  # -- Create PodSecurityPolicy for clusters without Pod Security Standards
+  # (Kubernetes < 1.25 or clusters still using PSP)
+  createPodSecurityPolicy: false
+
+  # -- Create SecurityContextConstraints for OpenShift clusters
+  createSecurityContextConstraints: false
+
+  # -- Allow hostPath volumes (not recommended for restricted level)
+  allowHostPaths: false
+
+  # -- Allowed hostPath configurations (only if allowHostPaths is true)
+  allowedHostPaths: []
+  # Example:
+  # - pathPrefix: "/tmp"
+  #   readOnly: true
+  # - pathPrefix: "/var/log"
+  #   readOnly: false
+  # -- Allowed host port ranges (empty means no host ports allowed)
+  allowedHostPortRanges: []
+  # Example:
+  # - min: 8000
+  #   max: 8080
+  # -- Allowed Linux capabilities (empty for restricted level)
+  allowedCapabilities: []
+  # Example (not recommended for restricted):
+  # - "NET_BIND_SERVICE"
+  # - "SYS_TIME"
+  # -- Allowed seccomp profiles beyond RuntimeDefault
+  allowedSeccompProfiles: []
+  # Example:
+  # - type: "Localhost"
+  #   localhostProfile: "my-profile.json"
+  # -- AppArmor configuration
+  apparmor:
+    # -- Enable AppArmor profiles
+    enabled: false
+    # -- AppArmor profiles for containers
+    profiles: {}
+    # Example:
+    # livecomments: "runtime/default"
+    # sidecar: "localhost/my-profile"
+  # -- Compliance and audit settings
+  compliance:
+    # -- Enable compliance monitoring and reporting
+    enabled: true
+    # -- Compliance frameworks to validate against
+    frameworks:
+      - "pod-security-standards"
+      - "cis-kubernetes"
+      - "nist-cybersecurity"
+    auditLogging:
+      enabled: true
+      # -- Violation severity levels to log
+      levels:
+        - "warn"
+        - "error"
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Backup automation configuration for operational excellence
+# Provides multiple backup strategies including Velero and custom CronJob backups
+backup:
+  # -- Enable backup automation features
+  enabled: false
+
+  # -- Velero backup configuration for full cluster backup
+  velero:
+    # -- Enable Velero backup scheduling
+    enabled: false
+    # -- Backup schedule in cron format (default: daily at 2 AM)
+    schedule: "0 2 * * *"
+    # -- Backup retention period (default: 30 days)
+    retention: "720h"
+    # -- Velero namespace (default: velero)
+    namespace: "velero"
+    # -- Storage location for backups
+    storageLocation: "default"
+    # -- Volume snapshot locations for persistent volumes
+    volumeSnapshotLocations:
+      - "default"
+    includeCustomResources: true
+    # -- Custom resources to include in backup
+    customResources:
+      - "rollouts.argoproj.io"
+      - "virtualservices.networking.istio.io"
+      - "destinationrules.networking.istio.io"
+      - "gateways.networking.istio.io"
+    hooks:
+      enabled: true
+
+  # -- Custom CronJob backup for application-specific data
+  cronjob:
+    # -- Enable CronJob-based backup
+    enabled: false
+    # -- Backup schedule in cron format (default: daily at 3 AM)
+    schedule: "0 3 * * *"
+    # -- Timezone for backup schedule
+    timeZone: "UTC"
+    # -- Concurrency policy for backup jobs
+    concurrencyPolicy: "Forbid"
+    # -- Number of successful backup jobs to retain
+    successfulJobsHistoryLimit: 3
+    # -- Number of failed backup jobs to retain
+    failedJobsHistoryLimit: 1
+    # -- Deadline for backup job to start
+    startingDeadlineSeconds: 300
+    # -- Number of retries for failed backup jobs
+    backoffLimit: 2
+    # -- Maximum time for backup job to complete
+    activeDeadlineSeconds: 3600
+    # -- Retention period for backups (in days)
+    retentionDays: 30
+    # -- Type of backup to perform
+    backupType: "application-data"
+
+    # -- Container image for backup executor
+    image:
+      repository: "amazon/aws-cli"
+      tag: "2.13.0"
+      pullPolicy: "IfNotPresent"
+
+    # -- Resource limits and requests for backup job
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+
+    # -- S3 configuration for backup storage
+    s3:
+      # -- S3 bucket for backup storage
+      bucket: ""
+      # -- S3 prefix for backup objects
+      prefix: "backups"
+
+    # -- Additional environment variables for backup job
+    extraEnv: {}
+    # Example:
+    # AWS_REGION: "us-east-1"
+    # BACKUP_ENCRYPTION: "true"
+    # -- Additional volumes for backup job
+    volumes: []
+    # Example:
+    # - name: config
+    #   configMap:
+    #     name: backup-config
+    # -- Additional volume mounts for backup job
+    volumeMounts: []
+    # Example:
+    # - name: config
+    #   mountPath: /etc/backup
+    #   readOnly: true
+    # -- Node selector for backup job placement
+    nodeSelector: {}
+    # Example:
+    # kubernetes.io/arch: amd64
+    # node-role.kubernetes.io/worker: "true"
+    # -- Tolerations for backup job scheduling
+    tolerations: []
+    # Example:
+    # - key: "backup-node"
+    #   operator: "Equal"
+    #   value: "true"
+    #   effect: "NoSchedule"
+  # -- Monitoring configuration for backup operations
+  monitoring:
+    # -- Enable backup monitoring and metrics
+    enabled: true
+    # -- Prometheus metrics for backup status
+    metrics:
+      # -- Enable backup metrics collection
+      enabled: true
+      # -- Metrics endpoint path
+      path: "/metrics"
+      # -- Metrics collection interval
+      interval: "30s"
+    # -- Alerting configuration for backup failures
+    alerting:
+      # -- Enable backup failure alerts
+      enabled: true
+      # -- Alert severity levels
+      severity: "warning"
+      # -- Alert notification channels
+      channels:
+        - "slack"
+        - "email"
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Grafana Dashboards Configuration
+grafana:
+  # -- Dashboard configuration
+  dashboards:
+    # -- Enable Grafana dashboard ConfigMap creation
+    # Only creates ConfigMap if dashboard file exists at dashboards/livecomments.json
+    enabled: false
+
+    # -- Grafana folder for dashboard organization
+    folder: "Live Comments"
+
+    # -- Additional labels for dashboard ConfigMap discovery
+    labels:
+      grafanaDashboard: "1"
+      dashboardSource: "livecomments"
+
+    # @schema
+    # additionalProperties: true
+    # type: object
+    # @schema
+    # -- Grafana Dashboard Annotations
+    # Example annotations:
+    # grafana.com/dashboard-uid: "livecomments-dashboard"
+    # grafana.com/dashboard-title: "Live Comments Service Monitoring"
+    annotations: {}
