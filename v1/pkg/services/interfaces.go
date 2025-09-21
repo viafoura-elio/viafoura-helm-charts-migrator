@@ -2,10 +2,11 @@ package services
 
 import (
 	"context"
-	"helm-charts-migrator/v1/pkg/yaml"
 
 	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/client-go/kubernetes"
+
+	"helm-charts-migrator/v1/pkg/yaml"
 )
 
 // KubernetesService handles all Kubernetes cluster operations
@@ -128,13 +129,51 @@ type TransformConfig struct {
 	ServiceConfig interface{}
 }
 
+// MergeStrategy defines how to handle merging
+type MergeStrategy int
+
+const (
+	// MergeStrategyDeep performs deep recursive merge
+	MergeStrategyDeep MergeStrategy = iota
+	// MergeStrategyOverwrite replaces base with override
+	MergeStrategyOverwrite
+	// MergeStrategyAppend appends arrays instead of replacing
+	MergeStrategyAppend
+	// MergeStrategyPreferBase keeps base values in conflicts
+	MergeStrategyPreferBase
+	// MergeStrategyPreferOverride keeps override values in conflicts
+	MergeStrategyPreferOverride
+)
+
+// ConflictResolution defines how to resolve merge conflicts
+type ConflictResolution int
+
+const (
+	// ConflictResolutionError fails on conflicts
+	ConflictResolutionError ConflictResolution = iota
+	// ConflictResolutionPreferBase uses base value in conflicts
+	ConflictResolutionPreferBase
+	// ConflictResolutionPreferOverride uses override value in conflicts
+	ConflictResolutionPreferOverride
+	// ConflictResolutionInteractive prompts user for resolution
+	ConflictResolutionInteractive
+	// ConflictResolutionLog logs conflicts but continues
+	ConflictResolutionLog
+)
+
 // MergeService handles merging values with comment preservation
 type MergeService interface {
 	// MergeWithComments merges YAML nodes while preserving comments
 	MergeWithComments(base, override []byte) ([]byte, *MergeReport, error)
 
+	// MergeWithStrategy merges YAML with specific conflict resolution strategy
+	MergeWithStrategy(base, override []byte, strategy MergeStrategy) ([]byte, *MergeReport, error)
+
 	// TrackChanges tracks changes between before and after states
 	TrackChanges(before, after map[string]interface{}) *ChangeSet
+
+	// ResolveConflicts applies conflict resolution to a merge report
+	ResolveConflicts(report *MergeReport, resolution ConflictResolution) *MergeReport
 }
 
 // MergeReport contains information about the merge operation

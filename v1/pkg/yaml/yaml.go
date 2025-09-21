@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/elioetibr/yaml"
@@ -141,6 +142,9 @@ func (d *Document) SaveFile(path string, opts *Options) error {
 		opts = DefaultOptions()
 	}
 
+	// Ensure proper formatting before marshaling
+	d.ensureProperFormatting()
+
 	data, err := d.Marshal(opts)
 	if err != nil {
 		return err
@@ -261,6 +265,9 @@ func MarshalWithOptions(data interface{}, opts *Options) ([]byte, error) {
 	var buf bytes.Buffer
 	encoder := yaml.NewEncoder(&buf)
 	encoder.SetIndent(opts.IndentSize)
+	if opts.PreserveEmptyLines {
+		encoder.SetPreserveBlankLines(true)
+	}
 
 	if err := encoder.Encode(data); err != nil {
 		return nil, fmt.Errorf("failed to encode YAML: %w", err)
@@ -287,6 +294,9 @@ func MarshalNodeWithOptions(node *yaml.Node, opts *Options) ([]byte, error) {
 	var buf bytes.Buffer
 	encoder := yaml.NewEncoder(&buf)
 	encoder.SetIndent(opts.IndentSize)
+	if opts.PreserveEmptyLines {
+		encoder.SetPreserveBlankLines(true)
+	}
 
 	if err := encoder.Encode(node); err != nil {
 		return nil, fmt.Errorf("failed to encode YAML node: %w", err)
@@ -351,6 +361,12 @@ func MergeYAMLNodes(dest, source *yaml.Node) {
 				} else {
 					// Replace the value but preserve comments intelligently
 					newNode := *valueNode // Create a copy
+
+					// Reset line/column to allow proper formatting
+					// These will be set correctly by the encoder
+					newNode.Line = 0
+					newNode.Column = 0
+
 					// If source has a comment, use it; otherwise keep destination's comment
 					if valueNode.HeadComment != "" {
 						newNode.HeadComment = valueNode.HeadComment
@@ -372,6 +388,9 @@ func MergeYAMLNodes(dest, source *yaml.Node) {
 				// Also update key comments if source has them
 				if keyNode.HeadComment != "" || keyNode.LineComment != "" || keyNode.FootComment != "" {
 					newKeyNode := *keyNode
+					// Reset line/column for proper formatting
+					newKeyNode.Line = 0
+					newKeyNode.Column = 0
 					dest.Content[j] = &newKeyNode
 				}
 				found = true
@@ -381,7 +400,14 @@ func MergeYAMLNodes(dest, source *yaml.Node) {
 
 		// If key not found, append it with all its comments
 		if !found {
-			dest.Content = append(dest.Content, keyNode, valueNode)
+			// Create copies and reset line/column for proper formatting
+			newKeyNode := *keyNode
+			newValueNode := *valueNode
+			newKeyNode.Line = 0
+			newKeyNode.Column = 0
+			newValueNode.Line = 0
+			newValueNode.Column = 0
+			dest.Content = append(dest.Content, &newKeyNode, &newValueNode)
 		}
 	}
 }
@@ -409,6 +435,9 @@ func (d *Document) MergeWith(source *Document) error {
 
 	// Merge source into dest
 	MergeYAMLNodes(destRoot, sourceRoot)
+
+	// Ensure proper formatting after merge to prevent line breaks
+	d.ensureProperFormatting()
 
 	return nil
 }
@@ -453,6 +482,169 @@ func SecretsHeadComment(path string) string {
 
 	// Default comment for unmatched patterns
 	return "# Configuration secrets file"
+}
+
+// ============================================================================
+// Document Formatting Functions
+// ============================================================================
+
+// ensureProperFormatting ensures proper formatting for all nodes in the document
+func (d *Document) ensureProperFormatting() {
+	if d.node != nil {
+		// First reset all line/column information to let encoder set it properly
+		resetNodePositions(d.node)
+		// Then ensure proper styles
+		ensureProperNodeFormatting(d.node)
+	}
+}
+
+// resetNodePositions resets line and column information in all nodes
+func resetNodePositions(node *yaml.Node) {
+	if node == nil {
+		return
+	}
+
+	// Reset this node's position
+	node.Line = 0
+	node.Column = 0
+
+	// Recursively reset children
+	for _, child := range node.Content {
+		resetNodePositions(child)
+	}
+}
+
+// ensureProperNodeFormatting recursively ensures proper formatting for a node and its children
+func ensureProperNodeFormatting(node *yaml.Node) {
+	ensureProperNodeFormattingWithContext(node, false)
+}
+
+// ensureProperNodeFormattingWithContext recursively ensures proper formatting for a node and its children
+// with context about whether the node is a key in a mapping
+func ensureProperNodeFormattingWithContext(node *yaml.Node, isKey bool) {
+	if node == nil {
+		return
+	}
+
+	switch node.Kind {
+	case yaml.DocumentNode:
+		// Process document content
+		for _, child := range node.Content {
+			ensureProperNodeFormattingWithContext(child, false)
+		}
+
+	case yaml.MappingNode:
+		// Use block style for mappings to prevent inline formatting
+		if len(node.Content) > 0 {
+			node.Style = 0 // Block style
+		}
+		// Process all key-value pairs (keys at even indices, values at odd indices)
+		for i, child := range node.Content {
+			isChildKey := (i%2 == 0) // Even indices are keys, odd indices are values
+			ensureProperNodeFormattingWithContext(child, isChildKey)
+		}
+
+	case yaml.SequenceNode:
+		// Use block style for sequences
+		if len(node.Content) > 0 {
+			node.Style = 0 // Block style
+		}
+		// Process all sequence items (none are keys)
+		for _, child := range node.Content {
+			ensureProperNodeFormattingWithContext(child, false)
+		}
+
+	case yaml.ScalarNode:
+		// Keys should generally not be quoted unless absolutely necessary
+		if isKey {
+			// For keys, only quote if absolutely necessary
+			if len(node.Value) > 0 {
+				firstChar := node.Value[0]
+				// Only quote keys if they contain special YAML characters that would break parsing
+				if firstChar == '-' || firstChar == '?' || firstChar == ':' ||
+				   firstChar == '@' || firstChar == '`' || firstChar == '|' ||
+				   firstChar == '>' || firstChar == '{' || firstChar == '[' ||
+				   firstChar == '*' || firstChar == '&' || firstChar == '!' ||
+				   firstChar == '%' || firstChar == '\\' || firstChar == '"' ||
+				   firstChar == '\'' || strings.ContainsAny(node.Value, ":#") ||
+				   strings.HasPrefix(node.Value, " ") || strings.HasSuffix(node.Value, " ") {
+					node.Style = yaml.DoubleQuotedStyle
+				} else {
+					// Keep keys unquoted by default
+					node.Style = 0
+				}
+			} else {
+				// Empty keys need quotes
+				node.Style = yaml.DoubleQuotedStyle
+			}
+		} else {
+			// For values, ensure they are not broken across lines
+			// Check if the value contains actual newlines (multi-line content)
+			if strings.Contains(node.Value, "\n") {
+				// Multi-line strings should use literal style (block style)
+				node.Style = yaml.LiteralStyle // literal block scalar |
+			} else if node.Style == 0 {
+				// For single-line values, prevent line breaks by using appropriate style
+				// The issue is that style 0 (default) allows the encoder to break lines
+
+				// Check if value needs quotes
+				needsQuotes := false
+
+				// Check for YAML special characters at the start
+				if len(node.Value) > 0 {
+					firstChar := node.Value[0]
+					if firstChar == '-' || firstChar == '?' || firstChar == ':' ||
+					   firstChar == '@' || firstChar == '`' || firstChar == '|' ||
+					   firstChar == '>' || firstChar == '{' || firstChar == '[' ||
+					   firstChar == '*' || firstChar == '&' || firstChar == '!' ||
+					   firstChar == '%' || firstChar == '\\' || firstChar == '"' ||
+					   firstChar == '\'' {
+						needsQuotes = true
+					}
+				}
+
+				// Check if it's already tagged as a boolean
+				if node.Tag == "!!bool" {
+					// It's a boolean, keep it unquoted
+					node.Style = 0
+				} else {
+					// Check for special values that look like booleans or numbers
+					lowerVal := strings.ToLower(node.Value)
+					if lowerVal == "true" || lowerVal == "false" || lowerVal == "yes" ||
+					   lowerVal == "no" || lowerVal == "on" || lowerVal == "off" ||
+					   lowerVal == "null" || lowerVal == "~" {
+						// Check if the tag indicates it's actually a boolean
+						if node.Tag == "" || node.Tag == "!!str" {
+							// It's a string that looks like a boolean, needs quotes
+							needsQuotes = true
+						} else {
+							// It's actually a boolean/null, don't quote
+							node.Style = 0
+						}
+					}
+
+					// Check if it's a number
+					if _, err := strconv.ParseFloat(node.Value, 64); err == nil {
+						// It's a number, doesn't need quotes but should stay on one line
+						// Keep style as 0 for numbers
+						node.Style = 0
+					} else if needsQuotes || strings.ContainsAny(node.Value, ":#") ||
+						strings.HasPrefix(node.Value, " ") || strings.HasSuffix(node.Value, " ") {
+						// Use double quotes for strings that need protection
+						node.Style = yaml.DoubleQuotedStyle
+					} else if node.Style == yaml.DoubleQuotedStyle {
+						// Preserve DoubleQuotedStyle if it already exists
+						// Keep it as is
+					} else {
+						// For simple strings, preserve original style if set
+						// If style is 0 (default), keep it that way to allow natural formatting
+						// The encoder should handle simple values properly
+						// node.Style remains unchanged
+					}
+				}
+			}
+		}
+	}
 }
 
 // ============================================================================

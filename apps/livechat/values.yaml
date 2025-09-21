@@ -9,14 +9,12 @@
 # @schema
 # -- Override for chart name generation. When set, replaces the default chart name from Chart.yaml in resource naming
 nameOverride: ""
-
 # @schema
 # type: string
 # additionalProperties: false
 # @schema
 # -- Complete override for resource naming. When set, this exact name is used for all Kubernetes resources instead of generated names
 fullnameOverride: ""
-
 # @schema
 # type: integer
 # exclusiveMinimum: 0
@@ -24,7 +22,6 @@ fullnameOverride: ""
 # @schema
 # -- Number of application pod replicas to maintain for high availability and load distribution
 replicaCount: 1
-
 # @schema
 # additionalProperties: false
 # @schema
@@ -37,7 +34,6 @@ strategy:
     maxSurge: 1
     # -- Maximum pods that can be unavailable during update to maintain service availability
     maxUnavailable: 0
-
 # @schema
 # additionalProperties: false
 # @schema
@@ -56,14 +52,12 @@ image:
   pullPolicy: Always
   # -- Specific image tag to deploy. When empty, uses the chart's appVersion from Chart.yaml
   tag: "v0.0.1"
-
 # @schema
 # additionalProperties: true
 # @schema
 # -- List of secret names containing registry credentials for pulling images from private repositories like AWS ECR
 # Example: [{name: "aws-ecr-secret"}]
 imagePullSecrets: []
-
 # @schema
 # additionalProperties: false
 # @schema
@@ -77,7 +71,6 @@ serviceAccount:
   annotations: {}
   # -- Custom name for the ServiceAccount. If empty, generates from the release name
   name: ""
-
   # -- AWS IAM role integration for pod-level permissions via IRSA (IAM Roles for Service Accounts)
   # Note: Choose either IRSA or Pod Identity, not both
   iamRole:
@@ -90,7 +83,6 @@ serviceAccount:
     name: ""
     # -- AWS Account ID where the IAM role exists
     accountId: "218894879100"
-
   # -- AWS Pod Identity integration (newer alternative to IRSA)
   # Provides simplified IAM role association for pods without requiring OIDC configuration
   podIdentity:
@@ -107,7 +99,6 @@ serviceAccount:
     clusterName: ""
     # -- Use native AWS EKS Pod Identity Association instead of Crossplane CRD
     useNativeAssociation: false
-
 # @schema
 # type: object
 # additionalProperties: false
@@ -149,28 +140,24 @@ rbac:
     # -- Custom rules for the ClusterRole
     # Only add rules that require cluster-wide access
     rules: []
-
 # @schema
 # additionalProperties: true
 # @schema
 # -- Global annotations applied to all Kubernetes resources created by this chart
 # Example: {"app.kubernetes.io/owner": "platform-team"}
 defaultAnnotations: {}
-
 # @schema
 # additionalProperties: true
 # @schema
 # -- Custom annotations for pods, useful for monitoring, networking, and security policies
 # Example: {"prometheus.io/scrape": "true", "linkerd.io/inject": "enabled"}
 podAnnotations: {}
-
 # @schema
 # additionalProperties: true
 # @schema
 # -- Custom labels for pods used for selection, monitoring, and organization
 # Example: {"team": "backend", "component": "event-processor"}
 podLabels: {}
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -201,7 +188,6 @@ podSecurityContext:
   # -- Kernel parameters (sysctls) for pod-level tuning
   # Common for network stack optimization and connection handling
   sysctls: []
-
 # @schema
 # additionalProperties: false
 # @schema
@@ -224,7 +210,6 @@ securityContext:
   # -- Set the seccomp profile to restrict system calls
   seccompProfile:
     type: RuntimeDefault
-
 # @schema
 # additionalProperties: false
 # @schema
@@ -249,7 +234,6 @@ resources:
     cpu: "100m"
     # -- Guaranteed memory allocation. Should match limits for memory-intensive applications
     memory: "256Mi"
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -272,7 +256,7 @@ service:
   # -- Internal port the container listens on for incoming requests
   targetPort: 8080
   # -- NodePort for development/debugging (only when type is NodePort)
-  nodePort:
+  nodePort: null
   # -- Additional container ports configuration (JMX, metrics)
   containerPorts:
     # -- JMX (Java Management Extensions) port for JVM monitoring and management
@@ -299,7 +283,6 @@ service:
       containerPort: 5555
       # -- Protocol for metrics communication
       containerProtocol: TCP
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -324,7 +307,6 @@ livenessProbe:
     successThreshold: 1
     # -- Maximum time to wait for health check response before marking as failed
     timeoutSeconds: 10
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -348,7 +330,6 @@ readinessProbe:
     periodSeconds: 10
     # -- Timeout for readiness check response
     timeoutSeconds: 5
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -372,7 +353,6 @@ startupProbe:
     successThreshold: 1
     # -- Timeout for startup check response
     timeoutSeconds: 5
-
 # @schema
 # additionalProperties: true
 # autoscaling:
@@ -399,7 +379,6 @@ autoscaling:
     enabled: false
     # -- Prometheus metric name for active connection count monitoring
     connectionMetricName: base_connections_current
-
   # @schema
   # additionalProperties: true
   # @schema
@@ -425,7 +404,6 @@ autoscaling:
           value: 2
           periodSeconds: 60
       selectPolicy: Max
-
 # @schema
 # additionalProperties: true
 # volumes:
@@ -444,7 +422,6 @@ autoscaling:
 #   persistentVolumeClaim:
 #     claimName: shared-data
 volumes: []
-
 # @schema
 # additionalProperties: true
 # volumeMounts:
@@ -463,7 +440,6 @@ volumes: []
 #   mountPath: "/shared"           # Shared data directory
 #   readOnly: false
 volumeMounts: []
-
 # @schema
 # arch:
 #   type: string
@@ -472,7 +448,6 @@ volumeMounts: []
 # -- Target CPU architecture for container scheduling and node selection
 # Ensures pods run on compatible nodes (amd64 for Intel/AMD, arm64 for ARM processors)
 arch: amd64
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -483,7 +458,6 @@ podDisruptionBudget:
   # -- Maximum pods that can be unavailable during voluntary disruptions (node drains, updates)
   maxUnavailable: 1
   # Alternative: minAvailable: 1  # Minimum pods that must remain available
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -495,7 +469,6 @@ podDisruptionBudget:
 # node-type: compute-optimized       # High-performance nodes
 # zone: us-east-1a                   # Specific availability zone
 nodeSelector: {}
-
 # @schema
 # additionalProperties: true
 # type: array
@@ -503,7 +476,6 @@ nodeSelector: {}
 # -- Tolerations allow pods to schedule on nodes with matching taints
 # Used for dedicated nodes, special hardware, or workload isolation
 tolerations: []
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -570,7 +542,6 @@ tolerations: []
 #             app: redis
 #         topologyKey: kubernetes.io/hostname
 affinity: {}
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -595,7 +566,6 @@ affinity: {}
 #     enabled: false
 #     weight: 30
 podAffinity: []
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -609,7 +579,6 @@ podAffinity: []
 #   highTrafficMode:
 #     enabled: false # Can be toggled via Helm values override
 topologySpreadConstraints: []
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -618,7 +587,6 @@ topologySpreadConstraints: []
 # Memory settings: heap (128m initial and max)
 # Security: disable log4j lookups to prevent log4shell vulnerability
 envVars: {}
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -630,7 +598,6 @@ envVars: {}
 # API_TIMEOUT: "30s"                  # External API timeout
 # CACHE_TTL: "300"                    # Cache time-to-live in seconds
 configMapEnvVars: {}
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -638,7 +605,6 @@ configMapEnvVars: {}
 # Files are mounted to /var/migrator/jetty/resources via projected volume (optional, read-only)
 # Combined with secrets in a single mount point for unified configuration access
 configMap: {}
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -650,7 +616,6 @@ configMap: {}
 # JWT_SECRET: signing-key                # Token signing secret
 # ENCRYPTION_KEY: data-encryption-key    # Data encryption key
 secretsEnvVars: {}
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -664,7 +629,6 @@ secretsEnvVars: {}
 # tls-cert: "-----BEGIN CERTIFICATE----" # TLS certificate
 # signing-key: "private-key-content"     # JWT signing key
 secrets: {}
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -675,7 +639,6 @@ rollout:
 
   # -- Number of old ReplicaSets to retain for rollback
   revisionHistoryLimit: 10
-
   # @schema
   # additionalProperties: true
   # @schema
@@ -694,10 +657,9 @@ rollout:
       # -- Seconds to wait before auto-promotion
       autoPromotionSeconds: 30
       # -- Number of preview replicas (null uses main replica count)
-      previewReplicaCount:
+      previewReplicaCount: null
       # -- Seconds to wait before scaling down old version
       scaleDownDelaySeconds: 30
-
     # -- Canary deployment strategy
     # @schema
     # additionalProperties: true
@@ -722,11 +684,11 @@ rollout:
           # virtualService:
           # @schema
           virtualService:
-            name: ""  # Will be set via tpl in rollout template
+            name: "" # Will be set via tpl in rollout template
             routes:
               - primary
           destinationRule:
-            name: ""  # Will be set via tpl in rollout template
+            name: "" # Will be set via tpl in rollout template
             canarySubsetName: canary
             stableSubsetName: stable
       # @schema
@@ -772,7 +734,6 @@ rollout:
 
       # -- Maximum number of surge pods during canary
       maxSurge: 10%
-
   # @schema
   # additionalProperties: true
   # @schema
@@ -795,11 +756,10 @@ rollout:
     # -- Prometheus configuration for metrics collection
     prometheus:
       # -- Prometheus server address
-      address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+      address: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
     # -- Analysis templates to use
     templates:
       - templateName: success-rate
-
 # @schema
 # additionalProperties: false
 # @schema
@@ -817,7 +777,6 @@ hosts:
     # @schema
     domains:
       - livechat.vf-dev2.org
-
   # @schema
   # additionalProperties: true
   # @schema
@@ -830,7 +789,6 @@ hosts:
     # @schema
     # -- Internal/Private Domains not accessible from the internet for client connections
     domains: []
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -935,7 +893,6 @@ istio:
           config:
             # -- Whether to redirect HTTP to HTTPS
             httpsRedirect: true
-
       # -- Whether this server configuration is enabled
       - enabled: true
         # -- Port configurations for HTTPS
@@ -951,7 +908,6 @@ istio:
           config:
             # -- TLS mode (AUTO_PASSTHROUGH, SIMPLE, etc.)
             mode: AUTO_PASSTHROUGH
-
       # -- Whether this server configuration is enabled
       - enabled: false
         # -- Port configurations
@@ -1015,7 +971,6 @@ istio:
     enabled: false
     # -- Fault injection configurations
     configs: {}
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -1045,7 +1000,6 @@ serviceMonitor:
     any: false
     # -- Specific namespaces to monitor (leave empty for current namespace only)
     matchNames: []
-
 # @schema
 # additionalProperties: false
 # @schema
@@ -1092,7 +1046,6 @@ datadog:
 
   # -- Collect histogram buckets
   collectHistogramBuckets: true
-
   # -- Specific metrics to collect with transformations
   # Can be either strings (collect as-is) or objects (rename)
   metrics:
@@ -1125,13 +1078,13 @@ datadog:
         to: "http_method"
       - from: "status_code"
         to: "response_code"
-
   # -- Additional tags to add to all metrics
   # Note: version tag will be automatically replaced with the actual app version from Chart.yaml or image.tag
   tags:
     env: production
     team: backend
-    service: livechat
+    service:
+ livechat
 
   logs:
     enabled: true
@@ -1147,73 +1100,69 @@ datadog:
         name: "mask_credit_cards"
         pattern: "\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}"
         replacement: "****-****-****-****"
-
   # -- JMX (Java Management Extensions) integration configuration
   # Complete configuration for JMX monitoring with Datadog Agent
   jmx:
     # -- JMX connection URL (auto-generated if not provided)
     # Example: "service:jmx:rmi:///jndi/rmi://%%host%%:9016/jmxrmi"
     jmxUrl: ""
-    
+
     # -- JMX authentication username
     user: ""
-    
+
     # -- JMX authentication password (store in secret for production)
     password: ""
-    
+
     # -- Whether this is a JMX integration (default: true when jmx integration is selected)
     isJmx: true
-    
+
     # -- Collect default JMX metrics (heap, threads, GC, etc.)
     collectDefaultMetrics: true
-    
     # -- Process name regex for JMX connection discovery
     # Example: ".*java.*livechat.*"
     processNameRegex: ""
-    
+
     # -- Custom tools.jar path for JMX tools
     tools_jar_path: ""
-    
+
     # -- Custom name identifier for this JMX instance
     name: ""
-    
+
     # -- Custom Java binary path
     java_bin_path: ""
-    
     # -- JVM options for JMX connection
     # Example: "-Xms64m -Xmx128m"
     java_options: ""
-    
+
     # -- SSL/TLS trust store path for secure JMX connections
     trust_store_path: ""
-    
+
     # -- SSL/TLS trust store password
     trust_store_password: ""
-    
+
     # -- SSL/TLS key store path for client certificates
     key_store_path: ""
-    
+
     # -- SSL/TLS key store password
     key_store_password: ""
-    
+
     # -- Enable SSL for RMI registry connections
     rmi_registry_ssl: false
-    
+
     # -- RMI connection timeout in milliseconds
     rmi_connection_timeout: 20000
-    
+
     # -- RMI client timeout in milliseconds
     rmi_client_timeout: 15000
-    
+
     # -- Collect default JVM metrics (memory, GC, threads)
     collect_default_jvm_metrics: true
-    
+
     # -- Enable new garbage collection metrics format
     new_gc_metrics: true
-    
+
     # -- Custom service check prefix for JMX health checks
     service_check_prefix: "jmx"
-    
     # -- Custom metric configuration for JMX beans
     # Define specific MBeans and attributes to collect
     conf:
@@ -1227,7 +1176,8 @@ datadog:
               metric_type: "gauge"
             NonHeapMemoryUsage:
               alias: "jvm.non_heap_memory"
-              metric_type: "gauge"
+              metric_type:
+ "gauge"
 
       - include:
           domain: "java.lang"
@@ -1239,7 +1189,8 @@ datadog:
               metric_type: "counter"
             CollectionTime:
               alias: "jvm.gc.cms.time"
-              metric_type: "counter"
+              metric_type:
+ "counter"
 
       - include:
           domain: "java.lang"
@@ -1251,7 +1202,6 @@ datadog:
             DaemonThreadCount:
               alias: "jvm.daemon_thread_count"
               metric_type: "gauge"
-
       # Application-specific MBeans (customize for your application)
       - include:
           domain: "com.your.app"
@@ -1263,7 +1213,6 @@ datadog:
             IdleConnections:
               alias: "app.db.idle_connections"
               metric_type: "gauge"
-
   # -- Custom integration configuration
   # For integrations other than openmetrics or jmx
   instanceConfig: {}
@@ -1280,7 +1229,6 @@ datadog:
   # jmx: For Java Management Extensions monitoring
   # custom: For other monitoring integrations
   integration: "jmx"
-
   # -- Custom init configuration for the integration
   # Additional configuration passed to the integration's init_config
   initConfig: {}
@@ -1290,7 +1238,6 @@ datadog:
     enabled: false
     serviceName: "livechat"
     environment: "production"
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -1365,7 +1312,6 @@ networkPolicy:
     prometheusNamespace: "monitoring"
     # -- Datadog namespace for agent access
     datadogNamespace: "datadog"
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -1374,13 +1320,11 @@ networkPolicy:
 podSecurityStandards:
   # -- Enable Pod Security Standards compliance features
   enabled: true
-
   # -- Pod Security Standards level: privileged, baseline, or restricted
   # restricted: Most secure, suitable for security-critical applications
   # baseline: Minimally restrictive, prevents known privilege escalations
   # privileged: Unrestricted, suitable for system-level workloads
   level: "restricted"
-
   # -- Create PodSecurityPolicy for clusters without Pod Security Standards
   # (Kubernetes < 1.25 or clusters still using PSP)
   createPodSecurityPolicy: false
@@ -1437,7 +1381,6 @@ podSecurityStandards:
       levels:
         - "warn"
         - "error"
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -1570,7 +1513,6 @@ backup:
       channels:
         - "slack"
         - "email"
-
 # @schema
 # additionalProperties: true
 # @schema
@@ -1589,7 +1531,6 @@ grafana:
     labels:
       grafanaDashboard: "1"
       dashboardSource: "livechat"
-
     # @schema
     # additionalProperties: true
     # type: object

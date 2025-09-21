@@ -11,7 +11,6 @@ rollout:
 
   # -- Number of old ReplicaSets to retain for rollback
   revisionHistoryLimit: 10
-
   # @schema
   # additionalProperties: true
   # @schema
@@ -30,10 +29,9 @@ rollout:
       # -- Seconds to wait before auto-promotion
       autoPromotionSeconds: 30
       # -- Number of preview replicas (null uses main replica count)
-      previewReplicaCount:
+      previewReplicaCount: null
       # -- Seconds to wait before scaling down old version
       scaleDownDelaySeconds: 30
-
     # -- Canary deployment strategy
     # @schema
     # additionalProperties: true
@@ -58,11 +56,11 @@ rollout:
           # virtualService:
           # @schema
           virtualService:
-            name: ""  # Will be set via tpl in rollout template
+            name: "" # Will be set via tpl in rollout template
             routes:
               - primary
           destinationRule:
-            name: ""  # Will be set via tpl in rollout template
+            name: "" # Will be set via tpl in rollout template
             canarySubsetName: canary
             stableSubsetName: stable
       # @schema
@@ -87,7 +85,6 @@ rollout:
 
       # -- Maximum number of surge pods during canary
       maxSurge: 10%
-
   # @schema
   # additionalProperties: true
   # @schema
@@ -110,7 +107,7 @@ rollout:
     # -- Prometheus configuration for metrics collection
     prometheus:
       # -- Prometheus server address
-      address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+      address: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
     # -- Analysis templates to use
     templates:
       - templateName: success-rate

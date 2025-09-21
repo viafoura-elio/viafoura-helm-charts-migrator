@@ -1,14 +1,14 @@
-Autoscaling:
-  Target:
-    Cpu: 50
+autoscaling:
   enabled: true
   maxReplicas: 250
   minReplicas: 30
-ConfigMap:
+  target:
+    cpu: 50
+configMap:
   application.properties:
     auth.client_uuid: 7bde1a23-2528-4df6-9084-25725b9e91d9
-    auth.service_base_uri: https://auth.viafoura.co
-    auth.service_uri: https://auth.viafoura.io/authorize_client
+    auth.service_base_uri: "https://auth.viafoura.co"
+    auth.service_uri: "https://auth.viafoura.io/authorize_client"
     compliance.export.bucket: viafoura-gdpr-exports
     customer.keys.get_retry_count: 3
     customer.keys.get_retry_wait_ms: 50
@@ -28,41 +28,46 @@ ConfigMap:
     livecomments.service.trending_content_cache_max_size: 10000
     livecomments.service.user_profile_cache_max_size: 2000
     media.export.bucket: origin-usercontentmedia.viafoura.net
-    media.export.distribution_prefix: https://usercontentmedia.viafoura.net/
+    media.export.distribution_prefix: "https://usercontentmedia.viafoura.net/"
     section_tree.client.cache_expiry_sec: 600
     section_tree.client.timeout_ms: 500
     settings_client.cache_expiry_ms: 300000
     settings_service.request_timeout_ms: 500
-    v2api.uri: https://api.viafoura.co/v2
+    v2api.uri: "https://api.viafoura.co/v2"
     validation.originUrl.definedDomainCheck.enabled: true
   vfmetrics.properties:
-    datadog.tags: environment:viafoura
+    datadog.tags: "environment:viafoura"
     reporters: datadog
-Deployment:
-  MaxSurge: 10%
-  Replicas: 30
-Env:
-  JAVA_OPTS: -XX:NativeMemoryTracking=summary -Xms1200m -Xmx1200m -Dthumbnailator.conserveMemoryWorkaround=true -Dlog4j2.formatMsgNoLookups=True
+deployment:
+  maxSurge: 10%
+  replicas: 30
+env:
+  JAVA_OPTS: "-XX:NativeMemoryTracking=summary -Xms1200m -Xmx1200m -Dthumbnailator.conserveMemoryWorkaround=true -Dlog4j2.formatMsgNoLookups=True"
   LOG_APP_LEVEL: INFO
   LOG_APPENDER_NAME: ConsoleJsonAppender
   LOG_ROOT_LEVEL: ERROR
   LOG_VIAFOURA_LEVEL: WARN
-Image:
-  Tag: v5.12.3
-Ingress:
-  Host: livecomments.viafoura.co
-Resources:
+image:
+  pullPolicy: IfNotPresent
+  tag: v5.12.3
+ingress:
+  host: livecomments.viafoura.co
+replicaCount: 1
+resources:
   limits:
     cpu: 1001m
     memory: 2.7Gi
   requests:
     cpu: 600m
     memory: 2.7Gi
-Secrets:
+secrets:
   application.conf:
     auth.client_secret: eybd_qYEm%IVV6UEPFLf!dDvcXP1hW
     livecomments-trending.service.mysql.ro.password: cpxg-bM8AVg0Bk4xE2LG_iKiYmiyt5Ra
-    livecomments.service.jwt.secret1: acpeK%KVC%^19qQP2T8PsjS&osiTD9JREA6KP%ka1s9VLiM#qRM%1zUsIt@hDW^Q
-    livecomments.service.jwt.secret2: h!Z6ny!2P1FNchwSBdfI7H&n370kO8Xv3%YYbJxZ73DOXu$!mPkHmq@22radZtY#
+    livecomments.service.jwt.secret1: "acpeK%KVC%^19qQP2T8PsjS&osiTD9JREA6KP%ka1s9VLiM#qRM%1zUsIt@hDW^Q"
+    livecomments.service.jwt.secret2: "h!Z6ny!2P1FNchwSBdfI7H&n370kO8Xv3%YYbJxZ73DOXu$!mPkHmq@22radZtY#"
     livecomments.service.mysql.password: cpxg-bM8AVg0Bk4xE2LG_iKiYmiyt5Ra
     livecomments.service.mysql.ro.password: cpxg-bM8AVg0Bk4xE2LG_iKiYmiyt5Ra
+service:
+  port: 80
+  type: ClusterIP

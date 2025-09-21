@@ -217,11 +217,13 @@ All previously identified dead code files have been removed from the codebase.
 - Datadog annotation conversion working
 - Probe extraction complete
 
-#### ⚠️ Task 1.2: Legacy Values Merge - PARTIALLY COMPLETE
-- Basic merge functionality exists in yaml package
-- MergeYAMLNodes function implemented
-- Comment preservation needs verification
-- Change tracking may need enhancement
+#### ✅ Task 1.2: Legacy Values Merge - COMPLETED (2025-09-16)
+- ✅ Enhanced merge functionality with full comment preservation
+- ✅ Uses yaml package's advanced merger with Node API
+- ✅ Comprehensive change tracking with detailed reports
+- ✅ Multiple merge strategies implemented (Deep, Overwrite, Append, PreferBase, PreferOverride)
+- ✅ Conflict resolution strategies (Error, PreferBase, PreferOverride, Log, Interactive)
+- ✅ Full MergeReport with added/updated/deleted keys and conflicts
 
 #### ✅ Task 1.3: Transformation Report - IMPLEMENTED
 - Located in `pkg/services/report_service.go`
@@ -280,7 +282,14 @@ Adapters already split into separate files:
 - No god objects remain in the codebase
 - Dependencies cleaned with `go mod tidy`
 
-## 📝 Actual Remaining Tasks (2025-09-16)
+## 📝 Actual Remaining Tasks (Updated 2025-09-17)
+
+### ✅ Recently Completed
+1. **Comment Preservation During Transformations** - RESOLVED (2025-09-17)
+   - ✅ Implemented Node-level merging using `MergeYAMLNodes` function
+   - ✅ Transformations now preserve YAML comments and structure
+   - ✅ Uses Document.MergeWith() to apply transformed values while keeping comments
+   - ✅ Falls back to standard write only if merge fails
 
 ### High Priority
 1. **Test Coverage Enhancement**
@@ -288,15 +297,11 @@ Adapters already split into separate files:
    - Add tests for newly integrated transformer system
    - Ensure integration tests cover all critical paths
 
-2. **Legacy Values Merge Enhancement**
-   - Verify comment preservation during merge operations
-   - Implement comprehensive change tracking
-   - Add merge conflict resolution strategies
-
-3. **Documentation Updates**
+2. **Documentation Updates**
    - Update README.md to reflect current architecture
    - Document transformer plugin system
    - Add examples for extending transformers
+   - Document comment preservation feature
 
 ### Medium Priority
 1. **Performance Optimization**

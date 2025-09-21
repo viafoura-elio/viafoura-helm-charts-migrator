@@ -1,14 +1,20 @@
-ConfigMap:
+configMap:
   application.properties:
-    auth.service_base_uri: https://auth.vf-dev2.org
-    auth.service_uri: https://auth.vf-dev2.info/authorize_client
+    auth.service_base_uri: "https://auth.vf-dev2.org"
+    auth.service_uri: "https://auth.vf-dev2.info/authorize_client"
     compliance.export.bucket: viafoura-gdpr-exports.vf-dev2
     media.export.bucket: origin-usercontentmedia.vf-dev2.net
-    media.export.distribution_prefix: https://usercontentmedia.vf-dev2.net/
-    v2api.uri: https://api.vf-dev2.org/v2
+    media.export.distribution_prefix: "https://usercontentmedia.vf-dev2.net/"
+    v2api.uri: "https://api.vf-dev2.org/v2"
   vfmetrics.properties:
-    datadog.tags: environment:vf-dev2
-Deployment:
-  IamRole: livechat.vf-dev2.pod
-Ingress:
-  Host: chat.vf-dev2.org
+    datadog.tags: "environment:vf-dev2"
+deployment:
+  iamRole: livechat.vf-dev2.pod
+image:
+  pullPolicy: IfNotPresent
+ingress:
+  host: chat.vf-dev2.org
+replicaCount: 1
+service:
+  port: 80
+  type: ClusterIP

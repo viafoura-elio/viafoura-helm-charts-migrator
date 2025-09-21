@@ -1,0 +1,50 @@
+image:
+  pullPolicy: IfNotPresent
+replicaCount: 1
+rollout:
+  analysis:
+    count: 3
+    enabled: false
+    failureLimit: 1
+    interval: 1m
+    prometheus:
+      address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+    responseTimeThreshold: 500
+    startingStep: 2
+    successCondition: 0.99
+    templates:
+      - templateName: success-rate
+  enabled: true
+  revisionHistoryLimit: 10
+  strategy:
+    blueGreen:
+      autoPromotionEnabled: false
+      autoPromotionSeconds: 30
+      enabled: false
+      previewReplicaCount: null
+      scaleDownDelaySeconds: 30
+    canary:
+      enabled: true
+      managedRoutes: []
+      maxSurge: 10%
+      maxUnavailable: 0
+      steps:
+        - setWeight: 50
+        - pause:
+            duration: 3m
+        - setWeight: 100
+        - pause:
+            duration: 3m
+      trafficRouting:
+        istio:
+          destinationRule:
+            canarySubsetName: canary
+            name: ""
+            stableSubsetName: stable
+          virtualService:
+            name: ""
+            routes:
+              - primary
+service:
+  port: 80
+  type: ClusterIP

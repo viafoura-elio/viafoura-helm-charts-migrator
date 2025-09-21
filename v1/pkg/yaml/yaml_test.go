@@ -1220,6 +1220,137 @@ scalar: updated
 	})
 }
 
+func TestScalarFormatting(t *testing.T) {
+	// Test data that reproduces the scalar line-breaking issue
+	testData := map[string]interface{}{
+		"datadog": map[string]interface{}{
+			"jmx": map[string]interface{}{
+				"conf": []interface{}{
+					map[string]interface{}{
+						"include": map[string]interface{}{
+							"attribute": map[string]interface{}{
+								"HeapMemoryUsage": map[string]interface{}{
+									"alias":       "jvm.heap_memory",
+									"metric_type": "gauge",
+								},
+								"NonHeapMemoryUsage": map[string]interface{}{
+									"alias":       "jvm.non_heap_memory",
+									"metric_type": "gauge",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"tags": map[string]interface{}{
+			"service": "livecomments",
+			"env":     "production",
+		},
+	}
+
+	// Create document from test data
+	doc, err := yamlutil2.FromMap(testData)
+	if err != nil {
+		t.Fatal("Failed to create document:", err)
+	}
+
+	// Marshal to YAML
+	output, err := doc.Marshal(nil)
+	if err != nil {
+		t.Fatal("Failed to marshal document:", err)
+	}
+
+	outputStr := string(output)
+	lines := strings.Split(outputStr, "\n")
+
+	// Check that scalar values are not broken across lines
+	lineBrokenFound := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// Look for lines ending with colon only (key without value)
+		if strings.HasSuffix(trimmed, ":") && i+1 < len(lines) {
+			nextLine := strings.TrimSpace(lines[i+1])
+			// Check if next line is a simple value (not a key or complex structure)
+			if nextLine != "" && !strings.Contains(nextLine, ":") &&
+			   !strings.HasPrefix(nextLine, "-") && !strings.HasPrefix(nextLine, "#") {
+				t.Errorf("Found scalar value broken across lines:\n  Line %d: %s\n  Line %d: %s",
+					i+1, line, i+2, lines[i+1])
+				lineBrokenFound = true
+			}
+		}
+	}
+
+	if lineBrokenFound {
+		t.Error("Scalar formatting test failed - found broken scalar values")
+		t.Logf("Full output:\n%s", outputStr)
+	}
+
+	// Verify specific patterns that should be on single lines
+	expectedPatterns := []string{
+		"metric_type: gauge",
+		"service: livecomments",
+		"env: production",
+	}
+
+	for _, pattern := range expectedPatterns {
+		if !strings.Contains(outputStr, pattern) {
+			t.Errorf("Expected pattern '%s' not found in output", pattern)
+		}
+	}
+}
+
+func TestBlankLinePreservation(t *testing.T) {
+	yamlWithBlankLines := `# Section 1
+section1:
+  key1: value1
+
+# Section 2
+section2:
+  key2: value2
+
+# Section 3
+section3:
+  key3: value3`
+
+	// Load the YAML
+	doc, err := yamlutil2.Load([]byte(yamlWithBlankLines), nil)
+	if err != nil {
+		t.Fatal("Failed to load YAML:", err)
+	}
+
+	// Marshal back to YAML
+	output, err := doc.Marshal(nil)
+	if err != nil {
+		t.Fatal("Failed to marshal document:", err)
+	}
+
+	outputStr := string(output)
+	lines := strings.Split(outputStr, "\n")
+
+	// Count blank lines
+	blankLines := 0
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			blankLines++
+		}
+	}
+
+	// Should have at least some blank lines preserved
+	if blankLines < 2 {
+		t.Errorf("Expected at least 2 blank lines in output, found %d", blankLines)
+		t.Logf("Full output:\n%s", outputStr)
+	}
+
+	// Verify comments are preserved
+	if !strings.Contains(outputStr, "# Section 1") {
+		t.Error("Expected comment '# Section 1' not found")
+	}
+	if !strings.Contains(outputStr, "# Section 2") {
+		t.Error("Expected comment '# Section 2' not found")
+	}
+}
+
 func TestCommentPreservation(t *testing.T) {
 	yamlWithComments := `# File header comment
 # This is a test file

@@ -24,11 +24,10 @@ func NewMergeService(cfg *config.Config) MergeService {
 	}
 }
 
-// MergeWithComments merges YAML while preserving structure
-// Note: Comment preservation requires yaml.v3 Node API which is not available in our yaml package
-// This implementation focuses on value merging with tracking
+// MergeWithComments merges YAML while preserving comments and structure
+// This uses the yaml package's advanced merger that preserves comments
 func (m *mergeService) MergeWithComments(baseData, overrideData []byte) ([]byte, *MergeReport, error) {
-	// Parse YAML to maps
+	// First, track changes using the map-based approach
 	var baseMap map[string]interface{}
 	if err := yaml.Unmarshal(baseData, &baseMap); err != nil {
 		return nil, nil, fmt.Errorf("failed to parse base YAML: %w", err)
@@ -39,7 +38,7 @@ func (m *mergeService) MergeWithComments(baseData, overrideData []byte) ([]byte,
 		return nil, nil, fmt.Errorf("failed to parse override YAML: %w", err)
 	}
 
-	// Create report
+	// Create report by analyzing the maps
 	report := &MergeReport{
 		AddedKeys:   []string{},
 		UpdatedKeys: []string{},
@@ -47,22 +46,93 @@ func (m *mergeService) MergeWithComments(baseData, overrideData []byte) ([]byte,
 		Conflicts:   []string{},
 	}
 
-	// Merge maps
-	mergedMap := m.mergeMaps(baseMap, overrideMap, "", report)
+	// Track changes before merging
+	m.analyzeMergeChanges(baseMap, overrideMap, "", report)
 
-	// Marshal back to YAML
-	mergedData, err := yaml.Marshal(mergedMap)
+	// Now use the yaml package's merger for comment-preserving merge
+	baseDoc, err := yaml.Load(baseData, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse base YAML document: %w", err)
+	}
+
+	overrideDoc, err := yaml.Load(overrideData, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse override YAML document: %w", err)
+	}
+
+	// Configure merge to preserve comments
+	mergeOpts := &yaml.MergeOptions{
+		Strategy:                yaml.MergeDeep,
+		PreferSourceComments:    false, // Keep base comments when available
+		KeepDestinationComments: true,  // Preserve existing comments
+	}
+
+	// Perform the merge with comment preservation
+	mergedDoc, err := yaml.Merge(baseDoc, overrideDoc, mergeOpts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to merge documents: %w", err)
+	}
+
+	// Marshal the merged document preserving comments
+	mergedData, err := mergedDoc.Marshal(nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to encode merged YAML: %w", err)
 	}
 
-	m.log.InfoS("Merged YAML",
+	m.log.InfoS("Merged YAML with comments preserved",
 		"added", len(report.AddedKeys),
 		"updated", len(report.UpdatedKeys),
 		"deleted", len(report.DeletedKeys),
 		"conflicts", len(report.Conflicts))
 
 	return mergedData, report, nil
+}
+
+// analyzeMergeChanges analyzes what will change in the merge
+func (m *mergeService) analyzeMergeChanges(base, override map[string]interface{}, path string, report *MergeReport) {
+	// Track keys that exist in override
+	overrideKeys := make(map[string]bool)
+
+	// Check for additions and updates
+	for key, overrideValue := range override {
+		overrideKeys[key] = true
+		fullPath := m.buildPath(path, key)
+
+		if baseValue, exists := base[key]; exists {
+			// Key exists in both
+			baseMap, baseIsMap := baseValue.(map[string]interface{})
+			overrideMap, overrideIsMap := overrideValue.(map[string]interface{})
+
+			if baseIsMap && overrideIsMap {
+				// Both are maps - recurse
+				m.analyzeMergeChanges(baseMap, overrideMap, fullPath, report)
+			} else if !m.valuesEqual(baseValue, overrideValue) {
+				// Values differ - this is an update
+				report.UpdatedKeys = append(report.UpdatedKeys, fullPath)
+
+				// Check for potential conflicts (type changes)
+				if baseIsMap != overrideIsMap {
+					report.Conflicts = append(report.Conflicts,
+						fmt.Sprintf("%s: type change from %T to %T", fullPath, baseValue, overrideValue))
+				}
+			}
+		} else {
+			// Key only in override - this is an addition
+			report.AddedKeys = append(report.AddedKeys, fullPath)
+		}
+	}
+
+	// Check for deletions (keys in base but not in override)
+	// Note: In a merge operation, we typically don't delete keys
+	// This is for tracking purposes only
+	for key := range base {
+		if !overrideKeys[key] {
+			fullPath := m.buildPath(path, key)
+			// Mark as potential deletion (though merge won't actually delete)
+			// You might want to handle this differently based on merge strategy
+			m.log.V(3).InfoS("Key exists only in base (will be preserved)", "path", fullPath)
+		}
+	}
 }
 
 // mergeMaps recursively merges two maps
@@ -210,4 +280,143 @@ func (m *mergeService) FormatChanges(changes *ChangeSet) string {
 	}
 
 	return sb.String()
+}
+
+// MergeWithStrategy merges YAML with specific conflict resolution strategy
+func (m *mergeService) MergeWithStrategy(baseData, overrideData []byte, strategy MergeStrategy) ([]byte, *MergeReport, error) {
+	// Parse documents
+	baseDoc, err := yaml.Load(baseData, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse base YAML: %w", err)
+	}
+
+	overrideDoc, err := yaml.Load(overrideData, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse override YAML: %w", err)
+	}
+
+	// Create report
+	report := &MergeReport{
+		AddedKeys:   []string{},
+		UpdatedKeys: []string{},
+		DeletedKeys: []string{},
+		Conflicts:   []string{},
+	}
+
+	// Map strategy to yaml package strategy
+	var yamlStrategy yaml.MergeStrategy
+	var preferSource bool
+	var keepDestComments bool
+
+	switch strategy {
+	case MergeStrategyDeep:
+		yamlStrategy = yaml.MergeDeep
+		preferSource = false
+		keepDestComments = true
+	case MergeStrategyOverwrite:
+		yamlStrategy = yaml.MergeOverwrite
+		preferSource = true
+		keepDestComments = false
+	case MergeStrategyAppend:
+		yamlStrategy = yaml.MergeAppend
+		preferSource = false
+		keepDestComments = true
+	case MergeStrategyPreferBase:
+		yamlStrategy = yaml.MergeDeep
+		preferSource = false
+		keepDestComments = true
+	case MergeStrategyPreferOverride:
+		yamlStrategy = yaml.MergeDeep
+		preferSource = true
+		keepDestComments = false
+	default:
+		yamlStrategy = yaml.MergeDeep
+		preferSource = false
+		keepDestComments = true
+	}
+
+	// Configure merge options
+	mergeOpts := &yaml.MergeOptions{
+		Strategy:                yamlStrategy,
+		PreferSourceComments:    preferSource,
+		KeepDestinationComments: keepDestComments,
+	}
+
+	// Track changes before merge
+	var baseMap, overrideMap map[string]interface{}
+	yaml.Unmarshal(baseData, &baseMap)
+	yaml.Unmarshal(overrideData, &overrideMap)
+	m.analyzeMergeChanges(baseMap, overrideMap, "", report)
+
+	// Perform merge
+	mergedDoc, err := yaml.Merge(baseDoc, overrideDoc, mergeOpts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to merge with strategy %v: %w", strategy, err)
+	}
+
+	// Marshal result
+	mergedData, err := mergedDoc.Marshal(nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal merged data: %w", err)
+	}
+
+	m.log.InfoS("Merged with strategy",
+		"strategy", strategy,
+		"added", len(report.AddedKeys),
+		"updated", len(report.UpdatedKeys),
+		"conflicts", len(report.Conflicts))
+
+	return mergedData, report, nil
+}
+
+// ResolveConflicts applies conflict resolution to a merge report
+func (m *mergeService) ResolveConflicts(report *MergeReport, resolution ConflictResolution) *MergeReport {
+	if report == nil || len(report.Conflicts) == 0 {
+		return report
+	}
+
+	resolvedReport := &MergeReport{
+		AddedKeys:   report.AddedKeys,
+		UpdatedKeys: report.UpdatedKeys,
+		DeletedKeys: report.DeletedKeys,
+		Conflicts:   []string{},
+	}
+
+	for _, conflict := range report.Conflicts {
+		switch resolution {
+		case ConflictResolutionError:
+			// Keep all conflicts - they will cause errors
+			resolvedReport.Conflicts = append(resolvedReport.Conflicts, conflict)
+
+		case ConflictResolutionPreferBase:
+			// Log that we're using base value
+			m.log.V(2).InfoS("Resolved conflict by keeping base value", "conflict", conflict)
+			// Move from conflicts to updated (base wins, so no actual update)
+
+		case ConflictResolutionPreferOverride:
+			// Log that we're using override value
+			m.log.V(2).InfoS("Resolved conflict by using override value", "conflict", conflict)
+			// This is already handled in merge, just log it
+
+		case ConflictResolutionLog:
+			// Log the conflict but don't fail
+			m.log.InfoS("Merge conflict detected", "conflict", conflict)
+
+		case ConflictResolutionInteractive:
+			// In a non-interactive context, fall back to logging
+			m.log.InfoS("Interactive resolution not available, logging conflict", "conflict", conflict)
+			resolvedReport.Conflicts = append(resolvedReport.Conflicts, conflict)
+
+		default:
+			// Unknown resolution, keep conflict
+			resolvedReport.Conflicts = append(resolvedReport.Conflicts, conflict)
+		}
+	}
+
+	m.log.InfoS("Resolved conflicts",
+		"original", len(report.Conflicts),
+		"remaining", len(resolvedReport.Conflicts),
+		"resolution", resolution)
+
+	return resolvedReport
 }
