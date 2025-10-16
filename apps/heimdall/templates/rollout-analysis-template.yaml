@@ -1,0 +1,137 @@
+{{- if .Values.rollout.analysis.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "heimdall.fullname" . }}-success-rate
+  labels:
+    {{- include "heimdall.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: service
+    - name: namespace
+  metrics:
+    # Istio-based success rate metric
+    - name: istio-success-rate
+      initialDelay: 60s
+      interval: {{ .Values.rollout.analysis.interval }}
+      count: {{ .Values.rollout.analysis.count }}
+      successCondition: result[0] > {{ .Values.rollout.analysis.successCondition }}
+      failureLimit: {{ .Values.rollout.analysis.failureLimit }}
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.analysis.prometheus.address }}
+          query: >+
+            sum(irate(istio_requests_total{
+              reporter="source",
+              destination_service=~"{{`{{args.service}}`}}.{{`{{args.namespace}}`}}.svc.cluster.local",
+              response_code!~"5.*"}[1m])
+            )
+            /
+            sum(irate(istio_requests_total{
+              reporter="source",
+              destination_service=~"{{`{{args.service}}`}}.{{`{{args.namespace}}`}}.svc.cluster.local"}[1m])
+            )
+
+    # Istio-based response time metric
+    - name: istio-response-time-p95
+      initialDelay: 60s
+      interval: {{ .Values.rollout.analysis.interval }}
+      count: {{ .Values.rollout.analysis.count }}
+      successCondition: result[0] <= {{ .Values.rollout.analysis.responseTimeThreshold }}
+      failureLimit: {{ .Values.rollout.analysis.failureLimit }}
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.analysis.prometheus.address }}
+          query: >+
+            histogram_quantile(0.95,
+              sum(irate(istio_request_duration_milliseconds_bucket{
+                reporter="source",
+                destination_service=~"{{`{{args.service}}`}}.{{`{{args.namespace}}`}}.svc.cluster.local"}[1m])
+              ) by (le)
+            )
+
+    # Application HTTP request success rate
+    - name: app-http-success-rate
+      initialDelay: 60s
+      interval: {{ .Values.rollout.analysis.interval }}
+      count: {{ .Values.rollout.analysis.count }}
+      successCondition: result[0] >= {{ .Values.rollout.analysis.successCondition }}
+      failureLimit: {{ .Values.rollout.analysis.failureLimit }}
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.analysis.prometheus.address }}
+          query: >+
+            (
+              sum(rate(http_requests_total{
+                namespace="{{`{{args.namespace}}`}}",
+                pod=~"{{`{{args.service}}`}}-.*",
+                status!~"5.."}[1m]) > 0)
+              /
+              sum(rate(http_requests_total{
+                namespace="{{`{{args.namespace}}`}}",
+                pod=~"{{`{{args.service}}`}}-.*"}[1m]) > 0)
+            ) OR on() vector(1)
+
+    # Application HTTP response time (p95)
+    - name: app-http-latency-p95
+      initialDelay: 60s
+      interval: {{ .Values.rollout.analysis.interval }}
+      count: {{ .Values.rollout.analysis.count }}
+      successCondition: result[0] <= {{ .Values.rollout.analysis.responseTimeThreshold }}
+      failureLimit: {{ .Values.rollout.analysis.failureLimit }}
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.analysis.prometheus.address }}
+          query: >+
+            (
+              histogram_quantile(0.95,
+                sum(rate(http_request_duration_seconds_bucket{
+                  namespace="{{`{{args.namespace}}`}}",
+                  pod=~"{{`{{args.service}}`}}-.*"}[1m])
+                ) by (le)
+              ) * 1000
+            ) OR on() vector(100)
+
+    # JVM memory usage check (ensure no memory leaks during canary)
+    - name: jvm-memory-usage
+      initialDelay: 60s
+      interval: {{ .Values.rollout.analysis.interval }}
+      count: {{ .Values.rollout.analysis.count }}
+      successCondition: result[0] < 0.90
+      failureLimit: {{ .Values.rollout.analysis.failureLimit }}
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.analysis.prometheus.address }}
+          query: >+
+            (
+              avg(
+                jvm_memory_used_bytes{
+                  namespace="{{`{{args.namespace}}`}}",
+                  pod=~"{{`{{args.service}}`}}-.*",
+                  area="heap"}
+                /
+                jvm_memory_max_bytes{
+                  namespace="{{`{{args.namespace}}`}}",
+                  pod=~"{{`{{args.service}}`}}-.*",
+                  area="heap"}
+              )
+            ) OR on() vector(0.5)
+
+    # Active connections check (ensure service can handle load)
+    - name: active-connections
+      initialDelay: 60s
+      interval: {{ .Values.rollout.analysis.interval }}
+      count: {{ .Values.rollout.analysis.count }}
+      successCondition: result[0] < 30000
+      failureLimit: {{ .Values.rollout.analysis.failureLimit }}
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.analysis.prometheus.address }}
+          query: >+
+            (
+              max(realtimeeventfeed_connections_current{
+                namespace="{{`{{args.namespace}}`}}",
+                pod=~"{{`{{args.service}}`}}-.*"}
+              )
+            ) OR on() vector(100)
+{{- end }}

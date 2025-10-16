@@ -1,0 +1,208 @@
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "base-chart.fullname" . }}-default
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+    component: network-security
+  annotations:
+    security.viafoura.com/policy-type: "default-deny-ingress"
+    security.viafoura.com/compliance: "pod-security-standards"
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "base-chart.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    # Allow ingress from same namespace pods
+    {{- if .Values.networkPolicy.ingress.allowSameNamespace }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Release.Namespace }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+        {{- if .Values.serviceMonitor.enabled }}
+        - protocol: TCP
+          port: {{ .Values.service.containerPorts.metrics.containerPort }}  # Metrics port
+        {{- end }}
+    {{- end }}
+    # Allow ingress from Istio Gateway
+    {{- if and .Values.istio.enabled .Values.networkPolicy.ingress.allowIstioGateway }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: istio-system
+        - podSelector:
+            matchLabels:
+              app: istio-proxy
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+    {{- end }}
+    # Allow ingress from monitoring namespace
+    {{- if and .Values.serviceMonitor.enabled .Values.networkPolicy.ingress.allowMonitoring }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.networkPolicy.ingress.monitoringNamespace | default "monitoring" }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.containerPorts.metrics.containerPort }}  # Metrics port
+    {{- end }}
+    # Custom ingress rules
+    {{- range .Values.networkPolicy.ingress.customRules }}
+    - from:
+        {{- if .namespaceSelector }}
+        - namespaceSelector:
+            {{- toYaml .namespaceSelector | nindent 12 }}
+        {{- end }}
+        {{- if .podSelector }}
+        - podSelector:
+            {{- toYaml .podSelector | nindent 12 }}
+        {{- end }}
+        {{- if .ipBlock }}
+        - ipBlock:
+            {{- toYaml .ipBlock | nindent 12 }}
+        {{- end }}
+      {{- if .ports }}
+      ports:
+        {{- toYaml .ports | nindent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    # Allow DNS resolution
+    {{- if .Values.networkPolicy.egress.allowDNS }}
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    # Allow HTTPS to internet (for external APIs, image pulls, etc.)
+    {{- if .Values.networkPolicy.egress.allowHTTPS }}
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- end }}
+    # Allow communication within namespace
+    {{- if .Values.networkPolicy.egress.allowSameNamespace }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Release.Namespace }}
+    {{- end }}
+    # Allow communication to AWS metadata service
+    {{- if .Values.networkPolicy.egress.allowAWSMetadata }}
+    - to:
+        - ipBlock:
+            cidr: 169.254.169.254/32
+      ports:
+        - protocol: TCP
+          port: 80
+    {{- end }}
+    # Custom egress rules
+    {{- range .Values.networkPolicy.egress.customRules }}
+    - to:
+        {{- if .namespaceSelector }}
+        - namespaceSelector:
+            {{- toYaml .namespaceSelector | nindent 12 }}
+        {{- end }}
+        {{- if .podSelector }}
+        - podSelector:
+            {{- toYaml .podSelector | nindent 12 }}
+        {{- end }}
+        {{- if .ipBlock }}
+        - ipBlock:
+            {{- toYaml .ipBlock | nindent 12 }}
+        {{- end }}
+      {{- if .ports }}
+      ports:
+        {{- toYaml .ports | nindent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+---
+{{- if .Values.networkPolicy.denyAll.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "base-chart.fullname" . }}-deny-all
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+    component: network-security
+    policy-type: deny-all
+  annotations:
+    security.viafoura.com/policy-type: "deny-all-default"
+    security.viafoura.com/priority: "100"
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "base-chart.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+{{- end }}
+
+---
+{{- if .Values.networkPolicy.monitoring.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "base-chart.fullname" . }}-monitoring
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+    component: network-security
+    policy-type: monitoring
+  annotations:
+    security.viafoura.com/policy-type: "monitoring-access"
+    security.viafoura.com/compliance: "observability-requirements"
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "base-chart.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow Prometheus scraping
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.networkPolicy.monitoring.prometheusNamespace | default "monitoring" }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.containerPorts.metrics.containerPort }}
+    # Allow Datadog agent
+    {{- if .Values.datadog.enabled }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.networkPolicy.monitoring.datadogNamespace | default "datadog" }}
+        - podSelector:
+            matchLabels:
+              app: datadog
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.containerPorts.metrics.containerPort }}
+        - protocol: TCP
+          port: {{ .Values.service.containerPorts.jmx.containerPort }}  # JMX port
+    {{- end }}
+{{- end }}
+{{- end }}

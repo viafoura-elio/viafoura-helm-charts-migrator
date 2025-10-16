@@ -1,0 +1,7 @@
+# Dev01 Cluster Configuration
+# TestDev Account - Development Cluster 01
+#
+# This file contains cluster-wide defaults for dev01
+# Values defined here are inherited by all namespaces in this cluster
+configMap:
+  application.properties: {}

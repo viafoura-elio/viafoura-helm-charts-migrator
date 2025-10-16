@@ -1,0 +1,29 @@
+{{- $dashboardFiles := .Files.Glob "dashboards/*.json" }}
+{{- if and .Values.grafana.dashboards.enabled $dashboardFiles }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "auth-service.fullname" . }}-dashboards
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "auth-service.labels" . | nindent 4 }}
+    component: monitoring
+    dashboard-type: grafana
+    {{- if .Values.grafana.dashboards.labels }}
+    {{- toYaml .Values.grafana.dashboards.labels | nindent 4 }}
+    {{- end }}
+  annotations:
+    grafana.com/dashboard: "true"
+    grafana.com/folder: {{ .Values.grafana.dashboards.folder | default "Java Applications" | quote }}
+    monitoring.viafoura.com/dashboard-version: {{ .Chart.AppVersion | quote }}
+    monitoring.viafoura.com/dashboard-count: {{ len $dashboardFiles | quote }}
+    {{- if .Values.grafana.dashboards.annotations }}
+    {{- toYaml .Values.grafana.dashboards.annotations | nindent 4 }}
+    {{- end }}
+data:
+  {{- range $path, $content := $dashboardFiles }}
+  {{- $filename := base $path }}
+  {{ $filename }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+{{- end }}

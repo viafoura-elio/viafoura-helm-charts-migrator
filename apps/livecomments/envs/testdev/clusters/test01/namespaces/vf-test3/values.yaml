@@ -1,0 +1,5 @@
+# VF-Test3 Namespace Configuration
+# Namespace vf-test3 in Test01 Cluster
+#
+# This file contains namespace-specific values for vf-test3
+# Values defined here override cluster and account-level defaults

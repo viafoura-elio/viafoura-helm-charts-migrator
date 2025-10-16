@@ -1,0 +1,5 @@
+ConfigMap:
+  vfmetrics.properties:
+    datadog.tags: environment:vf-dev2
+Ingress:
+  Host: tyrion.vf-dev2.org

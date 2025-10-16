@@ -1,0 +1,207 @@
+{{- if .Values.alerts.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "auth-service.fullname" . }}-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "auth-service.labels" . | nindent 4 }}
+    prometheus: kube-prometheus-stack
+    role: alert-rules
+    {{- with .Values.alerts.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if .Values.defaultAnnotations }}
+  annotations:
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  groups:
+    - name: {{ include "auth-service.fullname" . }}.rules
+      interval: {{ .Values.alerts.evaluationInterval | default "30s" }}
+      rules:
+        {{- if .Values.alerts.rules.highConnectionsPerPod.enabled }}
+        # Alert: High WebSocket Connections per Pod
+        - alert: {{ include "auth-service.fullname" . }}_HighConnectionsPerPod
+          expr: |
+            max by (pod, namespace) (
+              realtimeeventfeed_connections_current{
+                namespace="{{ .Release.Namespace }}",
+                pod=~"{{ include "auth-service.fullname" . }}-.*"
+              }
+            ) > {{ .Values.alerts.rules.highConnectionsPerPod.threshold }}
+          for: {{ .Values.alerts.rules.highConnectionsPerPod.duration | default "2m" }}
+          labels:
+            severity: {{ .Values.alerts.rules.highConnectionsPerPod.severity | default "warning" }}
+            component: auth-service
+            namespace: {{ .Release.Namespace }}
+            alert_type: performance
+          annotations:
+            summary: "High WebSocket connections on pod {{`{{ $labels.pod }}`}}"
+            description: "Pod {{`{{ $labels.pod }}`}} has {{`{{ $value | humanize }}`}} WebSocket connections (threshold: {{ .Values.alerts.rules.highConnectionsPerPod.threshold }})"
+            runbook_url: {{ .Values.alerts.runbookUrl }}/high-connections
+            dashboard_url: {{ .Values.alerts.dashboardUrl }}?var-namespace={{ .Release.Namespace }}&var-pod={{`{{ $labels.pod }}`}}
+        {{- end }}
+
+        {{- if .Values.alerts.rules.highGCPauseTime.enabled }}
+        # Alert: High GC Pause Time
+        - alert: {{ include "auth-service.fullname" . }}_HighGCPauseTime
+          expr: |
+            rate(jvm_gc_pause_seconds_sum{
+              namespace="{{ .Release.Namespace }}",
+              pod=~"{{ include "auth-service.fullname" . }}-.*"
+            }[5m]) * 1000 > {{ .Values.alerts.rules.highGCPauseTime.threshold }}
+          for: {{ .Values.alerts.rules.highGCPauseTime.duration | default "5m" }}
+          labels:
+            severity: {{ .Values.alerts.rules.highGCPauseTime.severity | default "warning" }}
+            component: auth-service
+            namespace: {{ .Release.Namespace }}
+            alert_type: performance
+          annotations:
+            summary: "High GC pause time on pod {{`{{ $labels.pod }}`}}"
+            description: "Pod {{`{{ $labels.pod }}`}} is experiencing GC pauses of {{`{{ $value | humanize }}`}}ms (threshold: {{ .Values.alerts.rules.highGCPauseTime.threshold }}ms)"
+            runbook_url: {{ .Values.alerts.runbookUrl }}/gc-pause-time
+            dashboard_url: {{ .Values.alerts.dashboardUrl }}?var-namespace={{ .Release.Namespace }}&var-pod={{`{{ $labels.pod }}`}}
+        {{- end }}
+
+        {{- if .Values.alerts.rules.podRestarts.enabled }}
+        # Alert: High Pod Restart Rate
+        - alert: {{ include "auth-service.fullname" . }}_HighPodRestarts
+          expr: |
+            increase(kube_pod_container_status_restarts_total{
+              namespace="{{ .Release.Namespace }}",
+              pod=~"{{ include "auth-service.fullname" . }}-.*",
+              container="{{ .Chart.Name }}"
+            }[1h]) > {{ .Values.alerts.rules.podRestarts.threshold }}
+          for: {{ .Values.alerts.rules.podRestarts.duration | default "5m" }}
+          labels:
+            severity: {{ .Values.alerts.rules.podRestarts.severity | default "critical" }}
+            component: auth-service
+            namespace: {{ .Release.Namespace }}
+            alert_type: stability
+          annotations:
+            summary: "High restart rate for pod {{`{{ $labels.pod }}`}}"
+            description: "Pod {{`{{ $labels.pod }}`}} has restarted {{`{{ $value | humanize }}`}} times in the last hour (threshold: {{ .Values.alerts.rules.podRestarts.threshold }})"
+            runbook_url: {{ .Values.alerts.runbookUrl }}/pod-restarts
+            dashboard_url: {{ .Values.alerts.dashboardUrl }}?var-namespace={{ .Release.Namespace }}&var-pod={{`{{ $labels.pod }}`}}
+        {{- end }}
+
+        {{- if .Values.alerts.rules.messageLatency.enabled }}
+        # Alert: High Message Latency (P99)
+        - alert: {{ include "auth-service.fullname" . }}_HighMessageLatency
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(realtime_event_message_duration_seconds_bucket{
+                namespace="{{ .Release.Namespace }}",
+                pod=~"{{ include "auth-service.fullname" . }}-.*"
+              }[5m])) by (le, pod)
+            ) * 1000 > {{ .Values.alerts.rules.messageLatency.threshold }}
+          for: {{ .Values.alerts.rules.messageLatency.duration | default "5m" }}
+          labels:
+            severity: {{ .Values.alerts.rules.messageLatency.severity | default "warning" }}
+            component: auth-service
+            namespace: {{ .Release.Namespace }}
+            alert_type: performance
+          annotations:
+            summary: "High message latency (P99) on pod {{`{{ $labels.pod }}`}}"
+            description: "Pod {{`{{ $labels.pod }}`}} has P99 message latency of {{`{{ $value | humanize }}`}}ms (threshold: {{ .Values.alerts.rules.messageLatency.threshold }}ms)"
+            runbook_url: {{ .Values.alerts.runbookUrl }}/message-latency
+            dashboard_url: {{ .Values.alerts.dashboardUrl }}?var-namespace={{ .Release.Namespace }}&var-pod={{`{{ $labels.pod }}`}}
+        {{- end }}
+
+        {{- if .Values.alerts.rules.podMemory.enabled }}
+        # Alert: High Memory Usage
+        - alert: {{ include "auth-service.fullname" . }}_HighMemoryUsage
+          expr: |
+            (
+              container_memory_working_set_bytes{
+                namespace="{{ .Release.Namespace }}",
+                pod=~"{{ include "auth-service.fullname" . }}-.*",
+                container="{{ .Chart.Name }}"
+              } /
+              container_spec_memory_limit_bytes{
+                namespace="{{ .Release.Namespace }}",
+                pod=~"{{ include "auth-service.fullname" . }}-.*",
+                container="{{ .Chart.Name }}"
+              }
+            ) * 100 > {{ .Values.alerts.rules.podMemory.threshold }}
+          for: {{ .Values.alerts.rules.podMemory.duration | default "5m" }}
+          labels:
+            severity: {{ .Values.alerts.rules.podMemory.severity | default "warning" }}
+            component: auth-service
+            namespace: {{ .Release.Namespace }}
+            alert_type: resource
+          annotations:
+            summary: "High memory usage on pod {{`{{ $labels.pod }}`}}"
+            description: "Pod {{`{{ $labels.pod }}`}} is using {{`{{ $value | humanizePercentage }}`}} of its memory limit"
+            runbook_url: {{ .Values.alerts.runbookUrl }}/memory-usage
+            dashboard_url: {{ .Values.alerts.dashboardUrl }}?var-namespace={{ .Release.Namespace }}&var-pod={{`{{ $labels.pod }}`}}
+        {{- end }}
+
+        {{- if .Values.alerts.rules.connectionDropRate.enabled }}
+        # Alert: High Connection Drop Rate
+        - alert: {{ include "auth-service.fullname" . }}_HighConnectionDropRate
+          expr: |
+            rate(realtime_event_connection_closed_total{
+              namespace="{{ .Release.Namespace }}",
+              pod=~"{{ include "auth-service.fullname" . }}-.*",
+              reason="error"
+            }[5m]) > {{ .Values.alerts.rules.connectionDropRate.threshold }}
+          for: {{ .Values.alerts.rules.connectionDropRate.duration | default "5m" }}
+          labels:
+            severity: {{ .Values.alerts.rules.connectionDropRate.severity | default "warning" }}
+            component: auth-service
+            namespace: {{ .Release.Namespace }}
+            alert_type: reliability
+          annotations:
+            summary: "High connection drop rate on pod {{`{{ $labels.pod }}`}}"
+            description: "Pod {{`{{ $labels.pod }}`}} is dropping {{`{{ $value | humanize }}`}} connections per second"
+            runbook_url: {{ .Values.alerts.runbookUrl }}/connection-drops
+            dashboard_url: {{ .Values.alerts.dashboardUrl }}?var-namespace={{ .Release.Namespace }}&var-pod={{`{{ $labels.pod }}`}}
+        {{- end }}
+
+        {{- if .Values.alerts.rules.serviceDown.enabled }}
+        # Alert: Service Down
+        - alert: {{ include "auth-service.fullname" . }}_ServiceDown
+          expr: |
+            up{
+              namespace="{{ .Release.Namespace }}",
+              pod=~"{{ include "auth-service.fullname" . }}-.*"
+            } == 0
+          for: {{ .Values.alerts.rules.serviceDown.duration | default "2m" }}
+          labels:
+            severity: {{ .Values.alerts.rules.serviceDown.severity | default "critical" }}
+            component: auth-service
+            namespace: {{ .Release.Namespace }}
+            alert_type: availability
+          annotations:
+            summary: "Service instance down: {{`{{ $labels.pod }}`}}"
+            description: "Pod {{`{{ $labels.pod }}`}} in namespace {{ .Release.Namespace }} is down"
+            runbook_url: {{ .Values.alerts.runbookUrl }}/service-down
+            dashboard_url: {{ .Values.alerts.dashboardUrl }}?var-namespace={{ .Release.Namespace }}&var-pod={{`{{ $labels.pod }}`}}
+        {{- end }}
+
+        {{- range .Values.alerts.customRules }}
+        # Custom Alert: {{ .name }}
+        - alert: {{ include "auth-service.fullname" $ }}_{{ .name }}
+          expr: |
+            {{ .expr | nindent 12 }}
+          {{- if .for }}
+          for: {{ .for }}
+          {{- end }}
+          labels:
+            severity: {{ .severity | default "warning" }}
+            component: auth-service
+            namespace: {{ $.Release.Namespace }}
+            {{- with .labels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            {{- with .annotations }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- end }}
+{{- end }}

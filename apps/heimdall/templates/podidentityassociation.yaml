@@ -1,0 +1,63 @@
+{{- if .Values.serviceAccount.podIdentity.enabled }}
+---
+apiVersion: eks.aws.crossplane.io/v1alpha1
+kind: PodIdentityAssociation
+metadata:
+  name: {{ include "heimdall.podIdentityAssociationName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heimdall.labels" . | nindent 4 }}
+  {{- if .Values.defaultAnnotations }}
+  annotations:
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  # The name of the EKS cluster
+  clusterName: {{ .Values.serviceAccount.podIdentity.clusterName | required "serviceAccount.podIdentity.clusterName is required when Pod Identity is enabled" }}
+
+  # The namespace of the ServiceAccount
+  namespace: {{ .Release.Namespace }}
+
+  # The name of the ServiceAccount
+  serviceAccount: {{ include "heimdall.serviceAccountName" . }}
+
+  # The ARN of the IAM role to associate
+  roleArn: {{ include "heimdall.podIdentityRoleArn" . }}
+
+  # Tags for the Pod Identity Association
+  tags:
+    Name: {{ include "heimdall.podIdentityAssociationName" . }}
+    Namespace: {{ .Release.Namespace }}
+    Application: {{ include "heimdall.name" . }}
+    Chart: {{ include "heimdall.chart" . }}
+    Release: {{ .Release.Name }}
+    Heritage: {{ .Release.Service }}
+
+---
+# Alternative: Native AWS EKS Pod Identity Association (requires AWS Load Balancer Controller or similar)
+# This creates the association directly with AWS EKS instead of using Crossplane
+{{- if .Values.serviceAccount.podIdentity.useNativeAssociation | default false }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "heimdall.podIdentityAssociationName" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heimdall.labels" . | nindent 4 }}
+  annotations:
+    # This annotation indicates to external controllers (like AWS Load Balancer Controller)
+    # that this should create a native Pod Identity Association
+    eks.amazonaws.com/pod-identity-association: "true"
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  clusterName: {{ .Values.serviceAccount.podIdentity.clusterName | quote }}
+  namespace: {{ .Release.Namespace | quote }}
+  serviceAccount: {{ include "heimdall.serviceAccountName" . | quote }}
+  roleArn: {{ include "heimdall.podIdentityRoleArn" . | quote }}
+  associationName: {{ include "heimdall.podIdentityAssociationName" . | quote }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,5 @@
+# Test01 Cluster Configuration
+# TestDev Account - Test Cluster 01
+#
+# This file contains cluster-wide defaults for test01
+# Values defined here are inherited by all namespaces in this cluster

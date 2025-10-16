@@ -1,0 +1,68 @@
+Autoscaling:
+  Target:
+    Cpu: 50
+  enabled: true
+  maxReplicas: 250
+  minReplicas: 1
+ConfigMap:
+  application.properties:
+    auth.client_uuid: 7bde1a23-2528-4df6-9084-25725b9e91d9
+    auth.service_base_uri: https://auth.viafoura.co
+    auth.service_uri: https://auth.viafoura.io/authorize_client
+    compliance.export.bucket: viafoura-gdpr-exports
+    customer.keys.get_retry_count: 3
+    customer.keys.get_retry_wait_ms: 50
+    feature.flag.decorate_contents_with_bans_count.enabled: true
+    livecomments-trending.service.mysql.host: livecomments.cluster-ro-ccfeqgys4gfe.us-east-1.rds.amazonaws.com
+    livecomments-trending.service.mysql.ro.host: livecomments.cluster-ro-ccfeqgys4gfe.us-east-1.rds.amazonaws.com
+    livecomments-trending.service.mysql.ro.max_pool_size: 100
+    livecomments.service.content_container_cache_max_size: 100000
+    livecomments.service.content_container_comment_count_and_status_cache_max_size: 100000
+    livecomments.service.mysql.host: livecomments.cluster-ccfeqgys4gfe.us-east-1.rds.amazonaws.com
+    livecomments.service.mysql.max_pool_size: 100
+    livecomments.service.mysql.ro.host: livecomments.cluster-ro-ccfeqgys4gfe.us-east-1.rds.amazonaws.com
+    livecomments.service.mysql.ro.max_pool_size: 100
+    livecomments.service.request_sampling_denominator: 10000
+    livecomments.service.settings_cache_max_size: 100000
+    livecomments.service.total_visible_content_cache_max_size: 10000
+    livecomments.service.trending_content_cache_max_size: 10000
+    livecomments.service.user_profile_cache_max_size: 2000
+    media.export.bucket: origin-usercontentmedia.viafoura.net
+    media.export.distribution_prefix: https://usercontentmedia.viafoura.net/
+    section_tree.client.cache_expiry_sec: 600
+    section_tree.client.timeout_ms: 500
+    settings_client.cache_expiry_ms: 300000
+    settings_service.request_timeout_ms: 500
+    v2api.uri: https://api.viafoura.co/v2
+    validation.originUrl.definedDomainCheck.enabled: true
+  vfmetrics.properties:
+    datadog.tags: environment:viafoura
+    reporters: datadog
+Deployment:
+  MaxSurge: 10%
+  Replicas: 1
+Env:
+  JAVA_OPTS: -XX:NativeMemoryTracking=summary -Xms1200m -Xmx1200m -Dthumbnailator.conserveMemoryWorkaround=true -Dlog4j2.formatMsgNoLookups=True
+  LOG_APP_LEVEL: INFO
+  LOG_APPENDER_NAME: ConsoleJsonAppender
+  LOG_ROOT_LEVEL: ERROR
+  LOG_VIAFOURA_LEVEL: WARN
+Image:
+  Tag: v5.12.3
+Ingress:
+  Host: livecomments.viafoura.co
+Resources:
+  limits:
+    cpu: 1001m
+    memory: 2.7Gi
+  requests:
+    cpu: 600m
+    memory: 2.7Gi
+Secrets:
+  application.conf:
+    auth.client_secret: eybd_qYEm%IVV6UEPFLf!dDvcXP1hW
+    livecomments-trending.service.mysql.ro.password: cpxg-bM8AVg0Bk4xE2LG_iKiYmiyt5Ra
+    livecomments.service.jwt.secret1: acpeK%KVC%^19qQP2T8PsjS&osiTD9JREA6KP%ka1s9VLiM#qRM%1zUsIt@hDW^Q
+    livecomments.service.jwt.secret2: h!Z6ny!2P1FNchwSBdfI7H&n370kO8Xv3%YYbJxZ73DOXu$!mPkHmq@22radZtY#
+    livecomments.service.mysql.password: cpxg-bM8AVg0Bk4xE2LG_iKiYmiyt5Ra
+    livecomments.service.mysql.ro.password: cpxg-bM8AVg0Bk4xE2LG_iKiYmiyt5Ra

@@ -1,0 +1,5 @@
+# Viafoura Namespace Configuration
+# Namespace viafoura in Stg01 Cluster
+#
+# This file contains namespace-specific values for viafoura
+# Values defined here override cluster and account-level defaults

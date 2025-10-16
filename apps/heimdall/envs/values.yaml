@@ -1,0 +1,5 @@
+# Global Configuration Defaults
+# Cross-Account Configuration
+#
+# This file contains global defaults that apply to all accounts
+# Values defined here are inherited by all accounts, clusters, and namespaces

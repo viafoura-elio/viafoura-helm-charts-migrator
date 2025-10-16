@@ -1,0 +1,46 @@
+{{- if .Values.istio.enabled }}
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: {{ include "heimdall.destinationRuleName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heimdall.labels" . | nindent 4 }}
+  {{- if or .Values.defaultAnnotations .Values.istio.globals.annotations }}
+  annotations:
+    {{- with .Values.istio.globals.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  host: {{ include "heimdall.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  {{- if .Values.istio.destinationRule.trafficPolicy.enabled }}
+  trafficPolicy:
+    {{- toYaml .Values.istio.destinationRule.trafficPolicy.config | nindent 4 }}
+  {{- end }}
+  {{- if .Values.rollout.enabled }}
+  {{- if .Values.rollout.strategy.canary.enabled }}
+  subsets:
+    - name: stable
+      labels:
+        {{- include "heimdall.selectorLabels" . | nindent 8 }}
+        rollouts-pod-template-hash: stable
+      {{- if .Values.istio.destinationRule.trafficPolicy.enabled }}
+      trafficPolicy:
+        {{- toYaml .Values.istio.destinationRule.trafficPolicy.config | nindent 8 }}
+      {{- end }}
+    - name: canary
+      labels:
+        {{- include "heimdall.selectorLabels" . | nindent 8 }}
+        rollouts-pod-template-hash: canary
+      {{- if .Values.istio.destinationRule.trafficPolicy.enabled }}
+      trafficPolicy:
+        {{- toYaml .Values.istio.destinationRule.trafficPolicy.config | nindent 8 }}
+      {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}

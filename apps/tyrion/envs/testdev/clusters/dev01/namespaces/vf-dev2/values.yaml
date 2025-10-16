@@ -1,0 +1,5 @@
+# VF-Dev2 Namespace Configuration
+# Namespace vf-dev2 in Dev01 Cluster
+#
+# This file contains namespace-specific values for vf-dev2
+# Values defined here override cluster and account-level defaults

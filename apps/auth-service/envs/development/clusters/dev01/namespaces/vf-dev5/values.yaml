@@ -1,0 +1,12 @@
+ConfigMap:
+  application.properties:
+    aws.cognito.clientId: 282epivnt8642oo68pkmimumtj
+    aws.cognito.userPoolId: us-east-1_9YhuRIhDM
+  vfmetrics.properties:
+    datadog.tags: environment:vf-dev2
+Deployment:
+  IamRole: auth-service.vf-dev2.pod
+Image:
+  Tag: v1.2.2
+Ingress:
+  Host: iam.vf-dev2.org

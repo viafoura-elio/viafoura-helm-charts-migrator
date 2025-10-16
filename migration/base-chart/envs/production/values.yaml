@@ -1,0 +1,8 @@
+# Production AWS Account Configuration
+# Account ID: 825534976873
+# Purpose: Production Environment
+#
+# This file contains account-wide defaults for production
+# Values defined here are inherited by all clusters in this account
+
+awsAccountId: "825534976873"

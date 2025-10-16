@@ -1,0 +1,5 @@
+# Dev02 Cluster Configuration
+# EKS Cluster in TestDev Account
+#
+# This file contains cluster-specific values for dev02
+# Values defined here override account-level defaults

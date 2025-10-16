@@ -1,0 +1,174 @@
+suite: Monitoring and ServiceMonitor Configuration Tests
+templates:
+  - servicemonitor.yaml
+  - service.yaml
+  - rollout.yaml
+tests:
+  - it: should render ServiceMonitor when enabled
+    template: servicemonitor.yaml
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - isAPIVersion:
+          of: monitoring.coreos.com/v1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-auth-service-metrics
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: auth-service
+
+  - it: should configure ServiceMonitor with correct endpoint
+    template: servicemonitor.yaml
+    asserts:
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 10s
+
+  - it: should configure ServiceMonitor with Prometheus release labels
+    template: servicemonitor.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.release
+          value: kube-prometheus-stack
+
+  - it: should not render ServiceMonitor when disabled
+    template: servicemonitor.yaml
+    set:
+      serviceMonitor.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should configure custom scraping interval
+    template: servicemonitor.yaml
+    set:
+      serviceMonitor.interval: 30s
+    asserts:
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 30s
+
+  - it: should configure custom metrics path
+    template: servicemonitor.yaml
+    set:
+      serviceMonitor.path: /custom-metrics
+    asserts:
+      - equal:
+          path: spec.endpoints[0].path
+          value: /custom-metrics
+
+  - it: should include metrics port in service when enabled
+    template: service.yaml
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            port: 5555
+            targetPort: 5555
+            protocol: TCP
+            name: metrics
+
+  - it: should not include metrics port in service when disabled
+    template: service.yaml
+    set:
+      service.containerPorts.metrics.enabled: false
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+            name: metrics
+
+  - it: should configure Prometheus scraping annotations on service
+    template: service.yaml
+    set:
+      service.annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5555"
+        prometheus.io/path: "/metrics"
+    asserts:
+      - equal:
+          path: metadata.annotations["prometheus.io/scrape"]
+          value: "true"
+      - equal:
+          path: metadata.annotations["prometheus.io/port"]
+          value: "5555"
+      - equal:
+          path: metadata.annotations["prometheus.io/path"]
+          value: "/metrics"
+
+  - it: should expose metrics port in rollout container
+    template: rollout.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: metrics
+            containerPort: 5555
+            protocol: TCP
+
+  - it: should not expose JMX port in service when exposeService is false
+    template: service.yaml
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+            name: jmx
+
+  - it: should expose JMX port in rollout container
+    template: rollout.yaml
+    set:
+      service.containerPorts.jmx.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: jmx
+            containerPort: 9016
+            protocol: TCP
+
+
+  - it: should configure namespace selector for cross-namespace monitoring
+    template: servicemonitor.yaml
+    set:
+      serviceMonitor.namespaceSelector.any: true
+    asserts:
+      - equal:
+          path: spec.namespaceSelector.any
+          value: true
+
+  - it: should configure specific namespaces for monitoring
+    template: servicemonitor.yaml
+    set:
+      serviceMonitor.namespaceSelector.matchNames:
+        - monitoring
+        - default
+    asserts:
+      - contains:
+          path: spec.namespaceSelector.matchNames
+          content: monitoring
+      - contains:
+          path: spec.namespaceSelector.matchNames
+          content: default
+
+  - it: should configure ServiceMonitor in custom namespace
+    template: servicemonitor.yaml
+    set:
+      serviceMonitor.namespace: monitoring
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: monitoring
+
+  - it: should use default namespace when not specified
+    template: servicemonitor.yaml
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: NAMESPACE

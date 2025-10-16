@@ -1,0 +1,32 @@
+{{- if or .Values.configMap -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "heimdall.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heimdall.labels" . | nindent 4 }}
+  annotations:
+    viafoura.co/{{ include "heimdall.configMapName" . }}-checksum: {{ toYaml .Values.configMap | sha256sum }}
+  {{- if .Values.defaultAnnotations }}
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+data:
+{{- range $filename, $content := .Values.configMap }}
+  {{- if kindIs "string" $content }}
+  {{ $filename }}: |
+    {{ $content | nindent 4 }}
+  {{- else if kindIs "map" $content }}
+  {{ $filename }}: |
+    {{- range $key, $value := $content }}
+    {{ $key }}={{ $value }}
+    {{- end }}
+  {{- else }}
+  {{ $filename }}: |
+    {{ $content | toYaml | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

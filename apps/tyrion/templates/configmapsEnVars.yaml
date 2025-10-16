@@ -1,0 +1,18 @@
+{{- if .Values.configMapEnvVars }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tyrion.fullname" . }}-configMapEnvVars
+  annotations:
+    viafoura.co/{{ include "tyrion.fullname" . }}-configMapEnvVars-checksum: {{ toYaml .Values.configMapEnvVars | sha256sum }}
+  {{- if .Values.defaultAnnotations }}
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+data:
+{{- with .Values.configMapEnvVars }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,40 @@
+Autoscaling:
+  enabled: true
+  maxReplicas: 25
+  minReplicas: 5
+ConfigMap:
+  application.properties:
+    authorization.service.client_uuid: 9359cb80-1e41-4fe5-b4af-cc95404fe901
+    aws.cognito.clientId: 4ku27da3qj0qq2vbl7bfag007e
+    aws.cognito.userPoolId: us-east-1_ew8dWBbCp
+  vfmetrics.properties:
+    datadog.tags: environment:viafoura
+    reporters: datadog
+Deployment:
+  Replicas: 5
+Env:
+  JAVA_OPTS: -XX:NativeMemoryTracking=summary -Xms300m -Xmx300m -Dlog4j2.formatMsgNoLookups=True
+  LOG_APP_LEVEL: INFO
+  LOG_APPENDER_NAME: ConsoleJsonAppender
+  LOG_ROOT_LEVEL: ERROR
+  LOG_VIAFOURA_LEVEL: WARN
+Image:
+  Tag: v1.2.3
+Ingress:
+  Host: iam.viafoura.co
+Resources:
+  limits:
+    cpu: 2
+    memory: 800Mi
+  requests:
+    cpu: 2
+    memory: 800Mi
+Secrets:
+  application.conf:
+    authorization.jwt.primary.secret: acpeK%KVC%^19qQP2T8PsjS&osiTD9JREA6KP%ka1s9VLiM#qRM%1zUsIt@hDW^Q
+    authorization.jwt.secondary.secret: h!Z6ny!2P1FNchwSBdfI7H&n370kO8Xv3%YYbJxZ73DOXu$!mPkHmq@22radZtY#
+    authorization.service.client_secret: ZpaoXlQs68Cv51Jg%NAKFZunotIP11
+    main_mysql.service.mysql.password: cHev58WvrprF5StipHf97hBpk2bULM
+    main_mysql.service.mysql.ro.password: cHev58WvrprF5StipHf97hBpk2bULM
+    main_mysql.service.mysql.ro.user: auth
+    main_mysql.service.mysql.user: auth

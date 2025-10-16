@@ -1,0 +1,18 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "livecomments.serviceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "livecomments.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    {{- include "livecomments.servicePorts" . | nindent 4 }}
+  selector:
+    {{- include "livecomments.selectorLabels" . | nindent 4 }}

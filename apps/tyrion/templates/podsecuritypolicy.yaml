@@ -1,0 +1,202 @@
+{{- if .Values.podSecurityStandards.enabled }}
+{{- if .Values.podSecurityStandards.createPodSecurityPolicy }}
+---
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: {{ include "tyrion.fullname" . }}-psp
+  labels:
+    {{- include "tyrion.labels" . | nindent 4 }}
+    component: security-policy
+  annotations:
+    # Pod Security Standards compliance level
+    pod-security.kubernetes.io/enforce: {{ .Values.podSecurityStandards.level | default "restricted" }}
+    pod-security.kubernetes.io/audit: {{ .Values.podSecurityStandards.level | default "restricted" }}
+    pod-security.kubernetes.io/warn: {{ .Values.podSecurityStandards.level | default "restricted" }}
+
+    # Compliance annotations
+    security.viafoura.com/compliance-framework: "pod-security-standards"
+    security.viafoura.com/policy-level: {{ .Values.podSecurityStandards.level | default "restricted" }}
+    security.viafoura.com/last-reviewed: {{ now | date "2006-01-02" }}
+spec:
+  # Privilege and access controls
+  privileged: false
+  allowPrivilegeEscalation: false
+
+  # Required to prevent escalations to root
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  runAsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1000
+        max: 65535
+
+  # Filesystem requirements
+  readOnlyRootFilesystem: true
+
+  # Volume requirements
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+    {{- if .Values.podSecurityStandards.allowHostPaths }}
+    - 'hostPath'
+    {{- end }}
+
+  {{- if .Values.podSecurityStandards.allowHostPaths }}
+  allowedHostPaths:
+    {{- range .Values.podSecurityStandards.allowedHostPaths }}
+    - pathPrefix: {{ .pathPrefix | quote }}
+      readOnly: {{ .readOnly | default true }}
+    {{- end }}
+  {{- end }}
+
+  # Host networking and ports
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+
+  # Port restrictions
+  {{- if .Values.podSecurityStandards.allowedHostPortRanges }}
+  hostPorts:
+    {{- range .Values.podSecurityStandards.allowedHostPortRanges }}
+    - min: {{ .min }}
+      max: {{ .max }}
+    {{- end }}
+  {{- end }}
+
+  # Capabilities
+  requiredDropCapabilities:
+    - ALL
+  {{- if .Values.podSecurityStandards.allowedCapabilities }}
+  allowedCapabilities:
+    {{- toYaml .Values.podSecurityStandards.allowedCapabilities | nindent 4 }}
+  {{- end }}
+
+  # Security profiles
+  seccompProfiles:
+    - type: 'RuntimeDefault'
+    {{- if .Values.podSecurityStandards.allowedSeccompProfiles }}
+    {{- range .Values.podSecurityStandards.allowedSeccompProfiles }}
+    - type: {{ .type | quote }}
+      {{- if .localhostProfile }}
+      localhostProfile: {{ .localhostProfile | quote }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+
+  # AppArmor (if enabled)
+  {{- if .Values.podSecurityStandards.apparmor.enabled }}
+  annotations:
+    {{- range $key, $value := .Values.podSecurityStandards.apparmor.profiles }}
+    container.apparmor.security.beta.kubernetes.io/{{ $key }}: {{ $value | quote }}
+    {{- end }}
+  {{- end }}
+
+  # SELinux
+  seLinux:
+    rule: 'RunAsAny'
+
+  # Filesystem group
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1000
+        max: 65535
+
+  # Supplemental groups
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1000
+        max: 65535
+
+---
+# ClusterRole for PSP usage
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "tyrion.fullname" . }}-psp-use
+  labels:
+    {{- include "tyrion.labels" . | nindent 4 }}
+    component: security-policy
+rules:
+- apiGroups: ['policy']
+  resources: ['podsecuritypolicies']
+  verbs: ['use']
+  resourceNames:
+  - {{ include "tyrion.fullname" . }}-psp
+
+---
+# RoleBinding for PSP usage
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tyrion.fullname" . }}-psp-use
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tyrion.labels" . | nindent 4 }}
+    component: security-policy
+roleRef:
+  kind: ClusterRole
+  name: {{ include "tyrion.fullname" . }}-psp-use
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: {{ include "tyrion.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+
+---
+{{- if .Values.podSecurityStandards.createSecurityContextConstraints }}
+# OpenShift SecurityContextConstraints (if on OpenShift)
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: {{ include "tyrion.fullname" . }}-scc
+  labels:
+    {{- include "tyrion.labels" . | nindent 4 }}
+    component: security-policy
+  annotations:
+    kubernetes.io/description: "SecurityContextConstraints for {{ include "tyrion.fullname" . }}"
+    security.viafoura.com/compliance-framework: "openshift-security"
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegedContainer: false
+allowedCapabilities: []
+defaultAddCapabilities: []
+fsGroup:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 65535
+readOnlyRootFilesystem: true
+requiredDropCapabilities:
+- ALL
+runAsUser:
+  type: MustRunAsNonRoot
+seLinuxContext:
+  type: MustRunAs
+supplementalGroups:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 65535
+volumes:
+- configMap
+- emptyDir
+- projected
+- secret
+- downwardAPI
+- persistentVolumeClaim
+users:
+- system:serviceaccount:{{ .Release.Namespace }}:{{ include "tyrion.serviceAccountName" . }}
+{{- end }}
+{{- end }}

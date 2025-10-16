@@ -1,0 +1,115 @@
+{{- if and .Values.istio.enabled .Values.istio.gateway.create }}
+{{- if and .Values.hosts.private.enabled (gt (len .Values.hosts.private.domains) 0) }}
+---
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: {{ include "tyrion.privateGatewayName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tyrion.gatewayLabels" . | nindent 4 }}
+  {{- if
+    or .Values.istio.gateway.annotations
+    .Values.istio.globals.annotations
+    .Values.defaultAnnotations
+  }}
+  annotations:
+    {{- with .Values.istio.gateway.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.istio.globals.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  selector:
+    {{- include "tyrion.privateGatewaySelector" . | nindent 4 }}
+  servers:
+    {{- range $server := .Values.istio.gateway.servers }}
+    {{- if $server.enabled }}
+    {{- range $server.ports }}
+    - hosts:
+        {{- include "tyrion.privateHostsList" $ | nindent 8 }}
+      port:
+        {{- toYaml . | nindent 8 }}
+      {{- if $server.tls.enabled }}
+      tls:
+        {{- if $server.tls.config.httpsRedirect }}
+        httpsRedirect: {{ $server.tls.config.httpsRedirect }}
+        {{- end }}
+        {{- if $server.tls.config.mode }}
+        mode: {{ $server.tls.config.mode }}
+        {{- end }}
+        {{- if and $.Values.istio.certManager.enabled $.Values.istio.certManager.issuer }}
+        credentialName: {{ include "tyrion.fullname" $ }}-tls
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- with .Values.istio.gateway.additionalConfig }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- if and .Values.hosts.public.enabled (gt (len .Values.hosts.public.domains) 0) }}
+---
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: {{ include "tyrion.publicGatewayName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tyrion.labels" . | nindent 4 }}
+    {{- with .Values.istio.gateway.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if
+    or .Values.istio.gateway.annotations
+    .Values.istio.globals.annotations
+    .Values.defaultAnnotations
+  }}
+  annotations:
+    {{- with .Values.istio.gateway.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.istio.globals.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  selector:
+    {{- include "tyrion.publicGatewaySelector" . | nindent 4 }}
+  servers:
+    {{- range $server := .Values.istio.gateway.servers }}
+    {{- if $server.enabled }}
+    {{- range $server.ports }}
+    - hosts:
+        {{- include "tyrion.publicHostsList" $ | nindent 8 }}
+      port:
+        {{- toYaml . | nindent 8 }}
+      {{- if $server.tls.enabled }}
+      tls:
+        {{- if $server.tls.config.httpsRedirect }}
+        httpsRedirect: {{ $server.tls.config.httpsRedirect }}
+        {{- end }}
+        {{- if $server.tls.config.mode }}
+        mode: {{ $server.tls.config.mode }}
+        {{- end }}
+        {{- if and $.Values.istio.certManager.enabled $.Values.istio.certManager.issuer }}
+        credentialName: {{ include "tyrion.fullname" $ }}-tls
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- with .Values.istio.gateway.additionalConfig }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}

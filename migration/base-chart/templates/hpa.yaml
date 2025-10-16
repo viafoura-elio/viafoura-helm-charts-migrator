@@ -1,0 +1,102 @@
+{{- if .Values.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "base-chart.hpaName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+  {{- if .Values.defaultAnnotations }}
+  annotations:
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  scaleTargetRef:
+    apiVersion: {{ if .Values.rollout.enabled }}argoproj.io/v1alpha1{{ else }}apps/v1{{ end }}
+    kind: {{ if .Values.rollout.enabled }}Rollout{{ else }}Deployment{{ end }}
+    name: {{ if .Values.rollout.enabled }}{{ include "base-chart.rolloutName" . }}{{ else }}{{ include "base-chart.fullname" . }}{{ end }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.customMetrics }}
+    {{- range .Values.autoscaling.customMetrics }}
+    - type: {{ .type | default "Pods" }}
+      {{- if eq (.type | default "Pods") "Pods" }}
+      pods:
+        metric:
+          name: {{ .name }}
+          {{- if .selector }}
+          selector:
+            {{- toYaml .selector | nindent 12 }}
+          {{- end }}
+        target:
+          type: {{ .target.type | default "AverageValue" }}
+          {{- if .target.averageValue }}
+          averageValue: {{ .target.averageValue | quote }}
+          {{- end }}
+          {{- if .target.value }}
+          value: {{ .target.value | quote }}
+          {{- end }}
+      {{- else if eq .type "Object" }}
+      object:
+        metric:
+          name: {{ .name }}
+          {{- if .selector }}
+          selector:
+            {{- toYaml .selector | nindent 12 }}
+          {{- end }}
+        describedObject:
+          apiVersion: {{ .describedObject.apiVersion }}
+          kind: {{ .describedObject.kind }}
+          name: {{ .describedObject.name }}
+        target:
+          type: {{ .target.type | default "Value" }}
+          {{- if .target.averageValue }}
+          averageValue: {{ .target.averageValue | quote }}
+          {{- end }}
+          {{- if .target.value }}
+          value: {{ .target.value | quote }}
+          {{- end }}
+      {{- else if eq .type "External" }}
+      external:
+        metric:
+          name: {{ .name }}
+          {{- if .selector }}
+          selector:
+            {{- toYaml .selector | nindent 12 }}
+          {{- end }}
+        target:
+          type: {{ .target.type | default "AverageValue" }}
+          {{- if .target.averageValue }}
+          averageValue: {{ .target.averageValue | quote }}
+          {{- end }}
+          {{- if .target.value }}
+          value: {{ .target.value | quote }}
+          {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+  {{- if .Values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml .Values.autoscaling.behavior | nindent 4 }}
+  {{- end }}
+{{- end }}

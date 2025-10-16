@@ -1,0 +1,104 @@
+suite: Basic Configuration Tests
+templates:
+  - rollout.yaml
+  - service.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+tests:
+  - it: should render rollout with default values
+    template: rollout.yaml
+    asserts:
+      - isKind:
+          of: Rollout
+      - isAPIVersion:
+          of: argoproj.io/v1alpha1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-base-chart
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should render service with correct configuration
+    template: service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+      - equal:
+          path: spec.ports[0].protocol
+          value: TCP
+
+  - it: should render serviceaccount when enabled
+    template: serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-base-chart
+      - equal:
+          path: automountServiceAccountToken
+          value: true
+
+  - it: should not render serviceaccount when disabled
+    template: serviceaccount.yaml
+    set:
+      serviceAccount.create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render configmap with application properties
+    template: configmap.yaml
+    set:
+      configMap:
+        application.properties:
+          kafka.bootstrap: "kafka:9092"
+          kafka.num.stream.thread.factor: "0.5"
+          logging.level.app: "INFO"
+          logging.level.root: "INFO"
+          logging.level.viafoura: "INFO"
+          service.server.event.feed.parallelism.thread.factor: "1"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: data["application.properties"]
+          value: |
+            kafka.bootstrap=kafka:9092
+            kafka.num.stream.thread.factor=0.5
+            logging.level.app=INFO
+            logging.level.root=INFO
+            logging.level.viafoura=INFO
+            service.server.event.feed.parallelism.thread.factor=1
+
+  - it: should use custom image when tag is specified
+    template: rollout.yaml
+    set:
+      image.tag: "v1.13.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "218894879100.dkr.ecr.us-east-1.amazonaws.com/base-chart:v1.13.0"
+
+  - it: should use appVersion when tag is not specified
+    template: rollout.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "218894879100.dkr.ecr.us-east-1.amazonaws.com/base-chart:v0.0.1"
+
+  - it: should include Java options in environment variables
+    template: rollout.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAVA_OPTIONS
+            value: "-XX:NativeMemoryTracking=summary -Xms100m -Xmx100m -Dlog4j2.formatMsgNoLookups=True"

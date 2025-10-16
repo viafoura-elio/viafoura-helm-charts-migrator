@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=values.schema.json
+# Default values for base-chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# @schema
+# type: string
+# additionalProperties: false
+# @schema
+# -- Override for chart name generation. When set, replaces the default chart name from Chart.yaml in resource naming
+nameOverride: ""
+
+# @schema
+# type: string
+# additionalProperties: false
+# @schema
+# -- Complete override for resource naming. When set, this exact name is used for all Kubernetes resources instead of generated names
+fullnameOverride: ""
+
+# @schema
+# type: integer
+# minimum: 1
+# @schema
+# -- Number of application pod replicas to maintain for high availability and load distribution
+replicaCount: 10 # Increased to 10 Replicas
+
+# @schema
+# additionalProperties: false
+# @schema
+# -- Kubernetes deployment strategy for managing pod updates and ensuring zero-downtime deployments
+strategy:
+  # -- Strategy type: RollingUpdate for gradual replacement, Recreate for immediate replacement
+  type: RollingUpdate
+  # -- rollingUpdate: RollingUpdate for gradual replacement, Recreate for immediate replacement
+  rollingUpdate:
+    # -- Maximum extra pods allowed during update (can be number or percentage like "25%")
+    maxSurge: 1
+    # -- Maximum pods that can be unavailable during update to maintain service availability
+    maxUnavailable: 0
+
+# @schema
+# additionalProperties: true
+# @schema
+# -- Topology spread constraints for pod distribution
+topologySpreadConstraints:
+  # -- Topology spread constraints for pod distribution
+  - enabled: true # Enabling the configuration
+    config: # Topology Spread Constraints Configuration
+      maxSkew: 1
+      topologyKey: "topology.kubernetes.io/zone"
+      whenUnsatisfiable: "ScheduleAnyway"
+
+image:
+  repository: 012345678901.dkr.ecr.us-east-1.amazonaws.com/base-chart
+  pullPolicy: Always
+  tag: "v1.0.0"

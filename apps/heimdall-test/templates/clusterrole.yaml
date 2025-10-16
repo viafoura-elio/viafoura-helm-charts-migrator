@@ -1,0 +1,46 @@
+{{- if and .Values.rbac.create .Values.rbac.clusterRole.create }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "base-chart.fullname" . }}-cluster-role
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.rbac.clusterRole.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+rules:
+  # WARNING: ClusterRole grants cluster-wide permissions
+  # Only add rules here if your application absolutely requires cluster-wide access
+  # Most microservices should NOT need ClusterRole permissions
+
+  # Example: Allow reading node information (for node-aware applications)
+  # - apiGroups: [""]
+  #   resources: ["nodes"]
+  #   verbs: ["get", "list"]
+
+  # Example: Allow reading persistent volumes (for storage-aware applications)
+  # - apiGroups: [""]
+  #   resources: ["persistentvolumes"]
+  #   verbs: ["get", "list"]
+
+  # Example: Allow reading custom resource definitions (for operators/controllers)
+  # - apiGroups: ["apiextensions.k8s.io"]
+  #   resources: ["customresourcedefinitions"]
+  #   verbs: ["get", "list"]
+
+  {{- with .Values.rbac.clusterRole.rules }}
+  # Custom cluster-wide rules from values.yaml
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+
+  {{- if not .Values.rbac.clusterRole.rules }}
+  # No default cluster-wide permissions - add custom rules in values.yaml if needed
+  # This follows the principle of least privilege
+  []
+  {{- end }}
+{{- end }}

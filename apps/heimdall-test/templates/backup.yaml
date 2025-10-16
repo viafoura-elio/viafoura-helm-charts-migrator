@@ -1,0 +1,325 @@
+{{- if .Values.backup.enabled }}
+{{- if .Values.backup.velero.enabled }}
+---
+# Velero backup schedule for persistent volumes and configurations
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: {{ include "base-chart.fullname" . }}-backup
+  namespace: {{ .Values.backup.velero.namespace | default "velero" }}
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+    component: backup
+    backup-type: velero
+  annotations:
+    backup.viafoura.com/retention-policy: {{ .Values.backup.velero.retention | default "720h" }}
+    backup.viafoura.com/backup-scope: "application"
+    backup.viafoura.com/last-backup: ""
+spec:
+  schedule: {{ .Values.backup.velero.schedule | default "0 2 * * *" | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "base-chart.labels" . | nindent 8 }}
+        backup-source: {{ include "base-chart.fullname" . }}
+    spec:
+      # Include resources
+      includedNamespaces:
+        - {{ .Release.Namespace }}
+
+      # Resource filters
+      includedResources:
+        - persistentvolumes
+        - persistentvolumeclaims
+        - configmaps
+        - secrets
+        - services
+        - deployments
+        - rollouts.argoproj.io
+        - servicemonitors.monitoring.coreos.com
+        {{- if .Values.backup.velero.includeCustomResources }}
+        {{- range .Values.backup.velero.customResources }}
+        - {{ . }}
+        {{- end }}
+        {{- end }}
+
+      # Label selector for specific resources
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: {{ include "base-chart.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name }}
+
+      # Backup configuration
+      storageLocation: {{ .Values.backup.velero.storageLocation | default "default" }}
+      volumeSnapshotLocations:
+        {{- range .Values.backup.velero.volumeSnapshotLocations }}
+        - {{ . }}
+        {{- end }}
+
+      # Retention
+      ttl: {{ .Values.backup.velero.retention | default "720h" }}
+
+      # Hooks for application-consistent backups
+      {{- if .Values.backup.velero.hooks.enabled }}
+      hooks:
+        resources:
+          - name: application-backup-hook
+            includedNamespaces:
+              - {{ .Release.Namespace }}
+            labelSelector:
+              matchLabels:
+                {{- include "base-chart.selectorLabels" . | nindent 16 }}
+            pre:
+              - exec:
+                  container: {{ .Chart.Name }}
+                  command:
+                    - /bin/sh
+                    - -c
+                    - |
+                      echo "Preparing application for backup..."
+                      # Flush any in-memory data
+                      curl -X POST http://localhost:8080/admin/backup-prepare || true
+                      # Wait for backup preparation
+                      sleep 10
+                  onError: Continue
+            post:
+              - exec:
+                  container: {{ .Chart.Name }}
+                  command:
+                    - /bin/sh
+                    - -c
+                    - |
+                      echo "Backup completed, resuming normal operations..."
+                      curl -X POST http://localhost:8080/admin/backup-complete || true
+                  onError: Continue
+      {{- end }}
+{{- end }}
+
+{{- if .Values.backup.cronjob.enabled }}
+---
+# CronJob for custom backup operations
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "base-chart.fullname" . }}-backup-cronjob
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+    component: backup
+    backup-type: custom
+  annotations:
+    backup.viafoura.com/backup-type: "application-data"
+    backup.viafoura.com/retention-days: {{ .Values.backup.cronjob.retentionDays | default "30" | quote }}
+spec:
+  schedule: {{ .Values.backup.cronjob.schedule | default "0 3 * * *" | quote }}
+  timeZone: {{ .Values.backup.cronjob.timeZone | default "UTC" }}
+  concurrencyPolicy: {{ .Values.backup.cronjob.concurrencyPolicy | default "Forbid" }}
+  successfulJobsHistoryLimit: {{ .Values.backup.cronjob.successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ .Values.backup.cronjob.failedJobsHistoryLimit | default 1 }}
+  startingDeadlineSeconds: {{ .Values.backup.cronjob.startingDeadlineSeconds | default 300 }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backup.cronjob.backoffLimit | default 2 }}
+      activeDeadlineSeconds: {{ .Values.backup.cronjob.activeDeadlineSeconds | default 3600 }}
+      template:
+        metadata:
+          labels:
+            {{- include "base-chart.selectorLabels" . | nindent 12 }}
+            component: backup-job
+          annotations:
+            backup.viafoura.com/job-type: "custom-backup"
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "base-chart.serviceAccountName" . }}
+
+          # Security context for backup job
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+
+          containers:
+          - name: backup-executor
+            image: {{ .Values.backup.cronjob.image.repository }}:{{ .Values.backup.cronjob.image.tag | default "latest" }}
+            imagePullPolicy: {{ .Values.backup.cronjob.image.pullPolicy | default "IfNotPresent" }}
+
+            securityContext:
+              capabilities:
+                drop: ["ALL"]
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 1000
+              allowPrivilegeEscalation: false
+
+            env:
+              - name: BACKUP_TYPE
+                value: {{ .Values.backup.cronjob.backupType | default "application-data" | quote }}
+              - name: BACKUP_TARGET
+                value: {{ include "base-chart.fullname" . }}
+              - name: BACKUP_NAMESPACE
+                value: {{ .Release.Namespace }}
+              - name: RETENTION_DAYS
+                value: {{ .Values.backup.cronjob.retentionDays | default "30" | quote }}
+              - name: S3_BUCKET
+                value: {{ .Values.backup.cronjob.s3.bucket | default "" | quote }}
+              - name: S3_PREFIX
+                value: {{ .Values.backup.cronjob.s3.prefix | default "backups" | quote }}
+              {{- range $key, $value := .Values.backup.cronjob.extraEnv }}
+              - name: {{ $key }}
+                value: {{ $value | quote }}
+              {{- end }}
+
+            command:
+              - /bin/sh
+              - -c
+              - |
+                set -e
+                echo "Starting backup for {{ include "base-chart.fullname" . }}..."
+
+                # Create backup directory
+                BACKUP_DIR="/tmp/backup-$(date +%Y%m%d-%H%M%S)"
+                mkdir -p "$BACKUP_DIR"
+
+                # Export application configuration
+                echo "Exporting configuration..."
+                kubectl get configmap -n $BACKUP_NAMESPACE -l app.kubernetes.io/name={{ include "base-chart.name" . }} -o yaml > "$BACKUP_DIR/configmaps.yaml"
+                kubectl get secret -n $BACKUP_NAMESPACE -l app.kubernetes.io/name={{ include "base-chart.name" . }} -o yaml > "$BACKUP_DIR/secrets.yaml"
+
+                # Export application data (if endpoints available)
+                echo "Exporting application data..."
+                APP_SERVICE="{{ include "base-chart.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local"
+                curl -f -o "$BACKUP_DIR/application-data.json" "http://$APP_SERVICE:{{ .Values.service.port }}/admin/export" || echo "No export endpoint available"
+
+                # Create backup manifest
+                cat > "$BACKUP_DIR/backup-manifest.yaml" << EOF
+                apiVersion: backup.viafoura.com/v1
+                kind: BackupManifest
+                metadata:
+                  name: {{ include "base-chart.fullname" . }}-$(date +%Y%m%d-%H%M%S)
+                  namespace: {{ .Release.Namespace }}
+                spec:
+                  application: {{ include "base-chart.fullname" . }}
+                  version: {{ .Chart.AppVersion | default "unknown" }}
+                  timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+                  type: $BACKUP_TYPE
+                  retention: ${RETENTION_DAYS}d
+                EOF
+
+                # Compress backup
+                BACKUP_ARCHIVE="backup-{{ include "base-chart.fullname" . }}-$(date +%Y%m%d-%H%M%S).tar.gz"
+                tar -czf "/tmp/$BACKUP_ARCHIVE" -C "$BACKUP_DIR" .
+
+                # Upload to S3 (if configured)
+                if [ -n "$S3_BUCKET" ]; then
+                  echo "Uploading backup to S3..."
+                  aws s3 cp "/tmp/$BACKUP_ARCHIVE" "s3://$S3_BUCKET/$S3_PREFIX/{{ include "base-chart.fullname" . }}/$BACKUP_ARCHIVE"
+                  echo "Backup uploaded successfully"
+                else
+                  echo "S3 not configured, backup stored locally"
+                fi
+
+                # Cleanup old backups
+                echo "Cleaning up old backups..."
+                if [ -n "$S3_BUCKET" ]; then
+                  aws s3 ls "s3://$S3_BUCKET/$S3_PREFIX/{{ include "base-chart.fullname" . }}/" | \
+                    grep "backup-" | \
+                    awk '{print $4}' | \
+                    sort -r | \
+                    tail -n +$((RETENTION_DAYS + 1)) | \
+                    while read file; do
+                      aws s3 rm "s3://$S3_BUCKET/$S3_PREFIX/{{ include "base-chart.fullname" . }}/$file"
+                    done
+                fi
+
+                echo "Backup completed successfully"
+
+            resources:
+              limits:
+                cpu: {{ .Values.backup.cronjob.resources.limits.cpu | default "500m" }}
+                memory: {{ .Values.backup.cronjob.resources.limits.memory | default "512Mi" }}
+              requests:
+                cpu: {{ .Values.backup.cronjob.resources.requests.cpu | default "100m" }}
+                memory: {{ .Values.backup.cronjob.resources.requests.memory | default "128Mi" }}
+
+            volumeMounts:
+              - name: tmp
+                mountPath: /tmp
+              {{- range .Values.backup.cronjob.volumeMounts }}
+              - name: {{ .name }}
+                mountPath: {{ .mountPath }}
+                {{- if .readOnly }}
+                readOnly: {{ .readOnly }}
+                {{- end }}
+              {{- end }}
+
+          volumes:
+            - name: tmp
+              emptyDir: {}
+            {{- range .Values.backup.cronjob.volumes }}
+            - name: {{ .name }}
+              {{- if .configMap }}
+              configMap:
+                name: {{ .configMap.name }}
+              {{- else if .secret }}
+              secret:
+                secretName: {{ .secret.secretName }}
+              {{- else if .persistentVolumeClaim }}
+              persistentVolumeClaim:
+                claimName: {{ .persistentVolumeClaim.claimName }}
+              {{- end }}
+            {{- end }}
+
+          {{- with .Values.backup.cronjob.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+          {{- with .Values.backup.cronjob.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
+
+{{- if .Values.backup.monitoring.enabled }}
+---
+# ServiceMonitor for backup metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "base-chart.fullname" . }}-backup-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+    component: backup-monitoring
+spec:
+  selector:
+    matchLabels:
+      {{- include "base-chart.selectorLabels" . | nindent 6 }}
+      component: backup-metrics
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+# Service for backup metrics
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "base-chart.fullname" . }}-backup-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+    component: backup-metrics
+spec:
+  selector:
+    {{- include "base-chart.selectorLabels" . | nindent 4 }}
+    component: backup-metrics
+  ports:
+    - name: metrics
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+      protocol: TCP
+{{- end }}
+{{- end }}

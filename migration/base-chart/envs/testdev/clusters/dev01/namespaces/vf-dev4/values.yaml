@@ -1,0 +1,8 @@
+# VF-Dev4 Namespace Configuration
+# Namespace vf-dev4 in Dev01 Cluster
+#
+# This file contains namespace-specific values for vf-dev4
+# Values defined here override cluster and account-level defaults
+
+image:
+  tag: "v0.0.1"

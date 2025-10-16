@@ -1,0 +1,25 @@
+{{- if not .Values.rollout.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "base-chart.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "base-chart.selectorLabels" . | nindent 6 }}
+  template:
+    {{- include "base-chart.podTemplate" . | nindent 4 }}
+{{- end }}

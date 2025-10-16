@@ -1,0 +1,18 @@
+{{- if .Values.configMapEnvVars }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "heimdall.fullname" . }}-configMapEnvVars
+  annotations:
+    viafoura.co/{{ include "heimdall.fullname" . }}-configMapEnvVars-checksum: {{ toYaml .Values.configMapEnvVars | sha256sum }}
+  {{- if .Values.defaultAnnotations }}
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+data:
+{{- with .Values.configMapEnvVars }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}

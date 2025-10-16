@@ -1,0 +1,26 @@
+{{- if and .Values.istio.enabled .Values.istio.ambient.enabled .Values.istio.ambient.waypoint.enabled }}
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  name: {{ include "base-chart.waypointName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+    istio.io/waypoint-for: {{ .Values.istio.ambient.waypoint.trafficType }}
+  {{- if or .Values.defaultAnnotations .Values.istio.globals.annotations }}
+  annotations:
+    {{- with .Values.istio.globals.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE
+{{- end }}

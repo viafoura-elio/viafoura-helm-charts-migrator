@@ -1,0 +1,71 @@
+{{- if and .Values.rbac.create .Values.rbac.role.create }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "livecomments.fullname" . }}-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "livecomments.labels" . | nindent 4 }}
+  {{- if or .Values.rbac.role.annotations .Values.defaultAnnotations }}
+  annotations:
+    {{- with .Values.rbac.role.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+rules:
+  # Minimal permissions required for a typical Java microservice
+  # Allow reading own pod information for health checks and self-discovery
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
+    resourceNames: ["{{ include "livecomments.fullname" . }}-*"]
+  # Allow reading configmaps that this application owns
+  # This is needed if the application reads its own configuration
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+    resourceNames: ["{{ include "livecomments.configMapName" . }}"]
+  # Allow reading secrets that this application owns
+  # This is needed if the application reads its own secrets
+  {{- if or .Values.secrets .Values.secretsEnvVars }}
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames: ["{{ include "livecomments.secretName" . }}"]
+  {{- end }}
+  # Allow reading service information for service discovery
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get"]
+    resourceNames: ["{{ include "livecomments.serviceName" . }}"]
+  # Allow reading endpoints for load balancing and service discovery
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list"]
+    resourceNames: ["{{ include "livecomments.serviceName" . }}"]
+  # Allow reading service account for token operations
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get"]
+    resourceNames: ["{{ include "livecomments.serviceAccountName" . }}"]
+  # Lease permissions for leader election (if using distributed locks)
+  # Only uncomment if your application needs leader election
+  # - apiGroups: ["coordination.k8s.io"]
+  #   resources: ["leases"]
+  #   verbs: ["get", "list", "create", "update", "patch"]
+  #   resourceNames: ["{{ include "livecomments.fullname" . }}-*"]
+  # Events permissions for debugging (read-only)
+  # Allow reading events related to this application's resources
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list"]
+
+  {{- with .Values.rbac.role.rules }}
+  # Custom rules from values.yaml
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

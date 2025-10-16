@@ -1,0 +1,76 @@
+suite: Simple Configuration Tests (No Schema Validation)
+templates:
+  - rollout.yaml
+  - service.yaml
+  - serviceaccount.yaml
+  - hpa.yaml
+  - istio-destinationrule.yaml
+tests:
+  - it: should render basic rollout
+    template: rollout.yaml
+    asserts:
+      - isKind:
+          of: Rollout
+      - isAPIVersion:
+          of: argoproj.io/v1alpha1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-auth-service
+
+  - it: should render service
+    template: service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should render serviceaccount
+    template: serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: automountServiceAccountToken
+          value: true
+
+  - it: should render HPA when autoscaling enabled
+    template: hpa.yaml
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - isKind:
+          of: HorizontalPodAutoscaler
+      - isAPIVersion:
+          of: autoscaling/v2
+
+  - it: should render destination rule when canary enabled
+    template: istio-destinationrule.yaml
+    asserts:
+      - isKind:
+          of: DestinationRule
+      - equal:
+          path: spec.subsets[0].name
+          value: stable
+      - equal:
+          path: spec.subsets[1].name
+          value: canary
+
+  - it: should configure replica count when autoscaling disabled
+    template: rollout.yaml
+    set:
+      autoscaling.enabled: false
+      replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: should not render HPA when autoscaling disabled
+    template: hpa.yaml
+    set:
+      autoscaling.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

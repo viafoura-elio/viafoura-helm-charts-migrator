@@ -1,0 +1,44 @@
+{{- if and .Values.rollout.enabled .Values.rollout.strategy.blueGreen.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "auth-service.fullname" . }}-preview
+  labels:
+    {{- include "auth-service.labels" . | nindent 4 }}
+    role: preview
+  {{- if .Values.serviceMonitor.enabled }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ .Values.service.containerPorts.metrics.containerPort }}"
+    prometheus.io/path: "{{ .Values.serviceMonitor.path }}"
+    {{- with .Values.service.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+      {{- if (and (eq .Values.service.type "NodePort") .Values.service.previewNodePort) }}
+      nodePort: {{ .Values.service.previewNodePort }}
+      {{- end }}
+  {{- with .Values.service.containerPorts }}
+  {{- range $svcName, $svcConfig := $.Values.service.containerPorts }}
+    {{- if and $svcConfig.enabled $svcConfig.exposeService }}
+    - port: {{ $svcConfig.containerPort }}
+      targetPort: {{ $svcConfig.containerPort | default (printf "%s-%s" $svcConfig.containerPortName $.Values.service.alias | trunc 15 | lower) }}
+      protocol: {{ $svcConfig.containerProtocol | default "TCP" }}
+      name: {{ printf "%s-%s" $svcConfig.containerPortName $.Values.service.alias | trunc 15 | lower }}
+      {{- if (and (eq $.Values.service.type "NodePort") $svcConfig.nodePort) }}
+      nodePort: {{ $svcConfig.nodePort }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  selector:
+    {{- include "auth-service.selectorLabels" . | nindent 4 }}
+{{- end }}

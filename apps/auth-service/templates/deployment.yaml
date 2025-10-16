@@ -1,0 +1,25 @@
+{{- if not .Values.rollout.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "auth-service.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "auth-service.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "auth-service.selectorLabels" . | nindent 6 }}
+  template:
+    {{- include "auth-service.podTemplate" . | nindent 4 }}
+{{- end }}

@@ -1,0 +1,77 @@
+{{- if .Values.rollout.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ include "tyrion.rolloutName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tyrion.labels" . | nindent 4 }}
+  {{- if .Values.defaultAnnotations }}
+  annotations:
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    {{- if .Values.rollout.strategy.blueGreen.enabled }}
+    blueGreen:
+      {{- with .Values.rollout.strategy.blueGreen }}
+      autoPromotionEnabled: {{ .autoPromotionEnabled }}
+      {{- if .autoPromotionSeconds }}
+      autoPromotionSeconds: {{ .autoPromotionSeconds }}
+      {{- end }}
+      {{- if .previewReplicaCount }}
+      previewReplicaCount: {{ .previewReplicaCount }}
+      {{- end }}
+      scaleDownDelaySeconds: {{ .scaleDownDelaySeconds }}
+      previewService: {{ include "tyrion.serviceName" $ }}-preview
+      activeService: {{ include "tyrion.serviceName" $ }}
+      {{- end }}
+    {{- else if .Values.rollout.strategy.canary.enabled }}
+    canary:
+      {{- with .Values.rollout.strategy.canary }}
+      maxUnavailable: {{ .maxUnavailable }}
+      maxSurge: {{ .maxSurge }}
+      steps:
+        {{- toYaml .steps | nindent 8 }}
+      {{- if and $.Values.istio.enabled .trafficRouting.istio }}
+      trafficRouting:
+        istio:
+          virtualService:
+            name: {{ include "tyrion.virtualServiceName" $ }}
+            routes:
+              {{- toYaml .trafficRouting.istio.virtualService.routes | nindent 14 }}
+          destinationRule:
+            name: {{ include "tyrion.destinationRuleName" $ }}
+            canarySubsetName: {{ .trafficRouting.istio.destinationRule.canarySubsetName }}
+            stableSubsetName: {{ .trafficRouting.istio.destinationRule.stableSubsetName }}
+      {{- end }}
+      {{- if .managedRoutes }}
+      managedRoutes:
+        {{- toYaml .managedRoutes | nindent 8 }}
+      {{- end }}
+      {{- if $.Values.rollout.analysis.enabled }}
+      analysis:
+        templates:
+        - templateName: {{ include "tyrion.fullname" $ }}-success-rate
+        startingStep: {{ $.Values.rollout.analysis.startingStep }}
+        args:
+        - name: service
+          value: {{ include "tyrion.serviceName" $ }}
+        - name: namespace
+          value: {{ $.Release.Namespace }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
+  revisionHistoryLimit: {{ .Values.rollout.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "tyrion.selectorLabels" . | nindent 6 }}
+  template:
+    {{- include "tyrion.podTemplate" . | nindent 4 }}
+{{- end }}

@@ -1,0 +1,46 @@
+Autoscaling:
+  Target:
+    Cpu: 50
+  enabled: true
+  maxReplicas: 25
+  minReplicas: 2
+ConfigMap:
+  application.properties:
+    tyrion.service.amazon.cloudfront.endpoint: https://cdn.viafoura.net
+    tyrion.service.amazon.s3.bucket.name: origin-tyrion.viafoura.net
+    tyrion.service.mysql.connection_parameters: clusterTopologyRefreshRateMs=5000&failoverClusterTopologyRefreshRateMs=1000&useCompression=true
+    tyrion.service.mysql.host: tyrion.cluster-ccfeqgys4gfe.us-east-1.rds.amazonaws.com
+    tyrion.service.mysql.ro.host: tyrion.cluster-ro-ccfeqgys4gfe.us-east-1.rds.amazonaws.com
+    tyrion.service.mysql.ro.user: tyrion
+    tyrion.service.mysql.user: tyrion
+    tyrion.service.request.timeout: 2000
+    tyrion.service.sections.cache.refresh.s: 60
+    tyrion.service.settings.cache.refresh.s: 60
+  vfmetrics.properties:
+    datadog.tags: environment:viafoura
+    reporters: datadog
+Deployment:
+  IamRole: tyrion.viafoura.pod
+  MaxSurge: 1
+  Replicas: 2
+Env:
+  JAVA_OPTS: -XX:NativeMemoryTracking=summary -Xms400m -Xmx400m -Dlog4j2.formatMsgNoLookups=True
+Image:
+  Tag: v5.5.0
+Ingress:
+  Host: tyrion.viafoura.co
+Resources:
+  limits:
+    cpu: 1001m
+    memory: 1000Mi
+  requests:
+    cpu: 1001m
+    memory: 100Mi
+Secrets:
+  application.conf:
+    tyrion.service.jwt.secret1: acpeK%KVC%^19qQP2T8PsjS&osiTD9JREA6KP%ka1s9VLiM#qRM%1zUsIt@hDW^Q
+    tyrion.service.jwt.secret2: h!Z6ny!2P1FNchwSBdfI7H&n370kO8Xv3%YYbJxZ73DOXu$!mPkHmq@22radZtY#
+    tyrion.service.mysql.password: DBUe1kqB2XFg+HkRjvomf+3g6BH4VWgAS2Os8vuLIvo=
+    tyrion.service.mysql.ro.password: DBUe1kqB2XFg+HkRjvomf+3g6BH4VWgAS2Os8vuLIvo=
+    tyrion.service.settings.secret.encryption.key1: RaB6WP42RW8fTi3D0C23O&pK8sa6mBCCCFqKbsUlfTNNRjy8!n^vtwH!Tme*mOJt
+    tyrion.service.settings.secret.encryption.key2: vZcDPcDxyMX#ZA3kNG6qLWYh3!B4tZ#BO797w9zMxY4!&XyXde1B@G%bFoKJX%Mk

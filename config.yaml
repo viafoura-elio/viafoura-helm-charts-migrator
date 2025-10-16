@@ -1,0 +1,607 @@
+# AWS Account Infrastructure
+accounts:
+  production:
+    clusters:
+      # Production Cluster Configuration
+      prod01:
+        default: false
+        default_namespace: viafoura
+        enabled: true
+        target: prod01
+        source: k8s1.cc
+        aws_profile: production-sre
+        aws_region: us-east-1
+        namespaces:
+          viafoura:
+            enabled: true
+            name: viafoura
+
+  testdev:
+    clusters:
+      # Development/Test Cluster Configuration
+      dev01:
+        default: true
+        default_namespace: vf-dev2
+        enabled: true
+        target: dev01
+        source: k8s1.xyz
+        aws_profile: test-sre
+        aws_region: us-east-1
+        namespaces:
+          vf-dev2:
+            enabled: true
+            name: vf-dev2
+          vf-dev3:
+            enabled: true
+            name: vf-dev3
+          vf-dev4:
+            enabled: true
+            name: vf-dev4
+          vf-dev5:
+            enabled: true
+            name: vf-dev5
+          vf-test2:
+            enabled: true
+            name: vf-test2
+          vf-test3:
+            enabled: true
+            name: vf-test3
+          vf-test4:
+            enabled: true
+            name: vf-test4
+
+# Global patterns that apply to all services
+globals:
+  # Migration pipeline configuration
+  pipeline:
+    # Define which steps to execute and in what order
+    # If not specified, all steps will run in default order
+    enabled: true
+    steps:
+      - name: copy_base_chart
+        enabled: true
+        description: "Copy base chart with service-specific replacements"
+      - name: copy_legacy_values
+        enabled: true
+        description: "Copy legacy chart values.yaml to legacy-values.yaml"
+      - name: copy_dashboards
+        enabled: true
+        description: "Copy dashboard files from legacy chart"
+      - name: extract_env_values
+        enabled: true
+        description: "Extract and copy environment-specific values"
+      - name: convert_legacy_keycase
+        enabled: true
+        description: "Convert legacy values keys to camelCase format"
+      - name: process_mappings
+        enabled: true
+        description: "Process mappings: extract from manifests, normalize keys, and clean unwanted values"
+      - name: process_secrets
+        enabled: true
+        description: "Process secrets: identify secrets from helm-values-keybase.yaml and move to the secrets section"
+
+  # Converter configuration for camelCase conversion
+  converter:
+    skipJavaProperties: true # Skip converting Java property style keys (e.g., root.properties)
+    skipUppercaseKeys: true # Skip converting keys that are mostly uppercase
+    minUppercaseChars: 3 # Minimum consecutive uppercase chars to skip conversion
+
+  # Performance configuration
+  performance:
+    maxConcurrentServices: 5 # Process up to 5 services in parallel
+    showProgress: true # Show progress during migration
+
+  # SOPS encryption/decryption configuration
+  sops:
+    enabled: true # Enable SOPS operations
+    awsProfile: "cicd-sre" # AWS profile for KMS operations
+    parallelWorkers: 5 # Number of parallel workers for encryption/decryption
+    configFile: ".sops.yaml" # SOPS configuration file path
+    pathRegex: '(.*)/(.*).dec.(json|yml|yaml)$' # Default path regex for files to encrypt
+    skipUnchanged: false # Skip encryption if encrypted file is newer than decrypted
+    timeout: 30 # Timeout in seconds for each encryption operation
+
+  # Auto Inject Key Values Pairs
+  autoInject:
+    "values.yaml":
+      keys:
+        - key: 'secrets."root.properties"."9487e74c-2d27-4085-b637-30a82239b0b2"'
+          value: misconfigured
+          condition: disabled # ifExists, ifNotExists, always, disabled
+          description: "Set Default Secret Value for 9487e74c-2d27-4085-b637-30a82239b0b2"
+    "envs/**/dev01/*/values.yaml":
+      keys:
+        - key: 'configMap."root.properties"."auth.dataSource.user"'
+          value: "{environment}-auth"
+          condition: disabled # ifExists, ifNotExists, always, disabled
+          description: "Set environment-specific auth datasource user"
+
+  # Hierarchical mapping for accurate values extraction
+  mappings:
+    normalizer:
+      enabled: true
+      description: "Global Normalizations Configuration"
+      patterns:
+        '[Aa]utoscaling.[Tt]arget.[Cc]pu': 'autoscaling.targetCPUUtilizationPercentage'
+        '[Aa]utoscaling.[Tt]arget.[Mm]emory': 'autoscaling.targetMemoryUtilizationPercentage'
+        '[Cc]ontainer.[Pp]ort': 'service.targetPort'
+        '^[Dd]eployment.replicaCount': 'replicaCount'
+        '^[Dd]eployment.maxSurge$': 'strategy.rollingUpdate.maxSurge'
+        '^[Dd]eployment.maxUnavailable$': 'strategy.rollingUpdate.maxUnavailable'
+        '^[Dd]eployment.iamRole$': 'serviceAccount.iamRole.name'
+        '^[Ee]nv$': 'envVars'
+    transform:
+      enabled: true
+      description: "Global Transformations Configuration"
+      rules:
+        ingress_to_hosts:
+          type: "ingress_to_hosts"
+          source_path: "[Ii]ngress"
+          keep_legacy_keys: false
+          target_path: "hosts.public.domains"
+          description: "Extract valid hosts from ingress configurations and collect them into hosts.public.domains list"
+    extract:
+      enabled: false
+      description: "Global Extractions Configuration"
+      patterns: {}
+      # New abstract manifest extraction rules
+      manifest_resources:
+        enabled: true
+        description: "Extract configuration from any Kubernetes resource in manifest.yaml"
+        # Save a consolidated extraction file in cache
+        consolidated_output:
+          enabled: true
+          filename: "extracted-manifest-data.yaml"
+        # Define extraction rules for different Kubernetes kinds
+        rules:
+          # Deployment extraction rule
+          - kind: Deployment
+            enabled: true
+            description: "Extract Deployment configurations"
+            extractions:
+              - source: "spec.template.spec.securityContext.sysctls"
+                target: "podSecurityContext.sysctls"
+                description: "Pod Security Context Sys CTLs"
+          # Service extraction rule
+          - kind: Service
+            enabled: true
+            description: "Extract Service port configuration"
+            extractions:
+              - source: "spec.ports[0].port"
+                target: "service.port"
+                description: "Main service port"
+              - source: "spec.ports[0].targetPort"
+                target: "service.targetPort"
+                description: "Container target port"
+              - source: "spec.ports[0].protocol"
+                target: "service.protocol"
+                description: "Port protocol (TCP/UDP)"
+              - source: "spec.ports[0].name"
+                target: "service.portName"
+                description: "Port name"
+              - source: "spec.type"
+                target: "service.type"
+                description: "Service type (ClusterIP, NodePort, LoadBalancer)"
+          # PodDisruptionBudget extraction
+          - kind: PodDisruptionBudget
+            enabled: true
+            description: "Extract PDB configuration"
+            extractions:
+              - source: "spec.minAvailable"
+                target: "podDisruptionBudget.minAvailable"
+              - source: "spec.maxUnavailable"
+                target: "podDisruptionBudget.maxUnavailable"
+          # ServiceAccount extraction
+          - kind: ServiceAccount
+            enabled: false
+            description: "Extract ServiceAccount configuration"
+            extractions:
+              - source: "metadata.name"
+                target: "serviceAccount.name"
+              - source: "metadata.annotations.'eks.amazonaws.com/role-arn'"
+                target: "serviceAccount.iamRole"
+                description: "AWS IAM role for service account"
+    cleaner:
+      enabled: true
+      description: "Global Cleaner Configuration - Removes unwanted root-level keys from values files"
+      # Path patterns to match files where cleaning should be applied
+      # Supports glob patterns like **/* and {cluster}/{namespace} placeholders
+      path_patterns:
+        - "apps/**/legacy-values-keycase.yaml"
+      # Key patterns to identify root-level keys that should be removed
+      # Only removes keys at the root level, nested keys with the same name are preserved
+      key_patterns:
+        - "^[Cc]anary$"
+        - "^[Cc]ontainer$"
+        - "^[Ff]ullnameOverride$"
+        - "^[Nn]ameOverride$"
+        - "^[Pp]odAnnotations$"
+        - "^[Pp]odLabels$"
+        - '^[Dd]eployment'
+        - '^[Rr]eplicas$'
+
+  # Hierarchical secrets mapping for accurate secrets extraction
+  secrets:
+    enabled: false
+    # Location configuration for targeted secret scanning
+    locations:
+      # Base values.yaml path where secrets are typically located in the legacy values. (defaults to "secrets")
+      base_path: "configMap" # Required
+      # The new destination of extracted secrets
+      store_path: "secrets" # Required
+      target_secrets_key: "" # Optional
+      # Additional specific paths where secrets might be found
+      additional_paths: [] # Optional
+      # - "auth"
+      # - "database"
+      # - "configMap.data"
+      # - "app.secrets"
+
+      # Path patterns for flexible secret detection
+      path_patterns: [] # Optional
+      # - ".*\\.auth\\..*"
+      # - ".*\\.credentials\\..*"
+      # - ".*\\.env\\..*"
+
+    # Merging Strategy
+    merging: {}
+    #  # Target Pattern file
+    #  "apps/{service}/values.yaml":
+    #    # Custom key mappings for livecomments
+    #    # Maps configMap keys to different secret keys
+    #    keyMappings:
+    #      'configMap."application.properties"': 'secrets."application.conf"'
+    #    # Define the merge order for secrets
+    #    # Files are processed in order, later files override earlier ones
+    #    mergeOrder:
+    #      - "apps/{service}/legacy-values.yaml"
+    #      - "apps/{service}/helm-values.yaml"
+
+    # Common secret patterns across all services
+    patterns:
+      - ".*\\.password.*"
+      - ".*\\.secret.*"
+      - ".*jwt\\.secret.*"
+      - ".*\\.key$"
+      - ".*\\.token.*"
+      # Removed overly broad auth pattern - replaced with specific ones below
+      - ".*client_secret.*"
+      - ".*api_key.*"
+      - ".*private_key.*"
+      - ".*signing_key.*"
+      - ".*encryption_key.*"
+      # More specific auth patterns to avoid false positives
+      - ".*\\.auth\\.key.*"
+      - ".*\\.auth\\.token.*"
+      - ".*\\.auth\\.secret.*"
+    # Global UUID patterns for client IDs and API keys
+    uuids:
+      - pattern: ".*client.*uuid.*"
+        sensitive: true
+        description: "Client UUIDs are typically sensitive identifiers"
+      - pattern: "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+        sensitive: true
+        description: "Generic UUID pattern - evaluate based on context"
+    # Common sensitive values regardless of key name
+    values:
+      # Base64 encoded secrets (more restrictive to avoid file paths)
+      - pattern: "^[A-Za-z0-9+/]{40,}={0,2}$"
+        sensitive: true
+        description: "Base64 encoded values are likely secrets (40+ chars, no slashes at start)"
+      # JWT tokens (start with eyJ)
+      - pattern: "^eyJ[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+$"
+        sensitive: true
+        description: "JWT-like tokens"
+      - pattern: "^[A-Fa-f0-9]{32,}$" # Hex encoded secrets
+        sensitive: true
+        description: "Long hex strings are likely secrets"
+
+  # Migration Configuration
+  migration:
+    # Legacy paths (source of migration) - relative to helm-charts-migrator directory
+    legacyHelmChartsPath: "../viafoura/charts"
+    legacyEnvironmentManifestsPath: "../viafoura/environments"
+    legacyOutputPath: "../viafoura/helmvars"
+    # Target paths (destination of migration)
+    source: "../viafoura"
+    target: "../apps"
+    baseChartPath: "../base-chart"
+    # File patterns
+    baseValuesPath: "**/values.yaml"
+    envValuesPattern: "**/envs/{cluster}/{environment}/{namespace}/values.yaml"
+    helmValuesFilename: "values.yaml"
+    legacyValuesFilename: "legacy-values.yaml"
+
+# Services to Migrate
+services:
+  auth-service:
+    enabled: false
+    alias: auth
+    gitRepo: https://github.com/viafoura/auth-service
+    name: auth-service
+    parameterStore: auth
+    secrets:
+      keys:
+        - "auth.client_secret"
+        - "database.password"
+        - "jwt.signing.key"
+      patterns:
+        - ".*client_secret.*"
+        - ".*database.*password.*"
+        - ".*jwt.*key.*"
+      description: "Auth service authentication secrets"
+    serviceType: service
+    serviceTypeCapitalized: Service
+  auth0-oidc-demo:
+    enabled: false
+    alias: auth0
+    gitRepo: https://github.com/viafoura/auth0-oidc-demo
+    name: auth0-oidc-demo
+    parameterStore: auth0-oidc-demo
+    serviceType: service
+    serviceTypeCapitalized: Service
+  comment-import:
+    enabled: false
+    alias: cimport
+    gitRepo: https://github.com/viafoura/comment-import-service
+    name: comment-import
+    parameterStore: comment-import
+    serviceType: service
+    serviceTypeCapitalized: Service
+  console:
+    enabled: false
+    alias: cons
+    gitRepo: https://github.com/viafoura/console-service
+    name: console
+    parameterStore: console
+    serviceType: service
+    serviceTypeCapitalized: Service
+  console-moderation:
+    enabled: false
+    alias: cm
+    gitRepo: https://github.com/viafoura/console-moderation
+    name: console-moderation
+    parameterStore: console-moderation
+    serviceType: service
+    serviceTypeCapitalized: Service
+  data-burrito:
+    enabled: false
+    alias: databur
+    gitRepo: https://github.com/viafoura/data-burrito
+    name: data-burrito
+    parameterStore: data-burrito
+    serviceType: service
+    serviceTypeCapitalized: Service
+  email:
+    enabled: false
+    alias: mail
+    gitRepo: https://github.com/viafoura/email-service
+    name: email
+    parameterStore: email
+    serviceType: service
+    serviceTypeCapitalized: Service
+  flume:
+    enabled: false
+    alias: flm
+    gitRepo: https://github.com/viafoura/flume
+    name: flume
+    parameterStore: flume
+    serviceType: service
+    serviceTypeCapitalized: Service
+  gdpr-mediation:
+    enabled: false
+    alias: gdprmed
+    gitRepo: https://github.com/viafoura/gdpr-mediation
+    name: gdpr-mediation
+    parameterStore: gdpr-mediation
+    serviceType: service
+    serviceTypeCapitalized: Service
+  heimdall:
+    enabled: true
+    alias: hmd
+    autoInject:
+      "values.yaml":
+        keys:
+          - key: 'secrets."root.properties"."9487e74c-2d27-4085-b637-30a82239b0b2"'
+            value: misconfigured
+            condition: ifExists # ifExists, ifNotExists, always, disabled
+            description: "Set Default Secret Value for 9487e74c-2d27-4085-b637-30a82239b0b2"
+      "envs/dev01/*/values.yaml":
+        keys:
+          - key: 'configMap."root.properties"."auth.dataSource.user"'
+            value: "{environment}-auth"
+            condition: ifExists # ifExists, ifNotExists, always, disabled
+            description: "Set environment-specific auth datasource user"
+    gitRepo: https://github.com/viafoura/heimdall
+    mappings: {}
+    migration: {}
+    name: heimdall
+    parameterStore: heimdall
+    secrets:
+      # These specific UUIDs are client secrets for heimdall
+      keys:
+        - "3f4beddd-2061-49b0-ae80-6f1f2ed65b37"
+        - "682843b1-d3e0-460e-ab90-6556bc31470f"
+        - "936da557-6daa-4444-92cc-161fc290c603"
+        - "9487e74c-2d27-4085-b637-30a82239b0b2"
+        - "c23203d0-1b8e-4208-92dc-85dc79e6226b"
+      patterns:
+        - ".*access.refresh.local_client_uuid.*"
+        - ".*loginradius.*secret.*"
+        - ".*oauth.*secret.*"
+        - ".*provider.*secret.*"
+      description: "Heimdall authentication service secrets"
+    serviceType: service
+    serviceTypeCapitalized: Service
+  ingestor:
+    enabled: false
+    alias: ing
+    gitRepo: https://github.com/viafoura/ingestor-service
+    name: ingestor
+    parameterStore: ingestor
+    serviceType: service
+    serviceTypeCapitalized: Service
+  legacy-gdpr-connector:
+    enabled: false
+    alias: leggdprc
+    gitRepo: https://github.com/viafoura/legacy-gdpr-connector
+    name: legacy-gdpr-connector
+    parameterStore: legacy-gdpr-connector
+    serviceType: service
+    serviceTypeCapitalized: Service
+  livechat:
+    enabled: false
+    alias: chat
+    gitRepo: https://github.com/viafoura/livechat-service
+    name: livechat
+    parameterStore: livechat
+    secrets:
+      keys:
+        - "auth.client_secret"
+        - "livechat.service.jwt.secret1"
+        - "livechat.service.jwt.secret2"
+        - "livechat.service.mysql.password"
+        - "livechat.service.mysql.ro.password"
+      patterns:
+        - ".*mysql.*password.*"
+        - ".*jwt.*secret.*"
+      description: "Livechat service database and JWT secrets"
+    serviceType: service
+    serviceTypeCapitalized: Service
+  livecomments:
+    enabled: false
+    alias: lc
+    gitRepo: https://github.com/viafoura/livecomments-service
+    name: livecomments
+    parameterStore: livecomments
+    secrets:
+      locations:
+        exclude:
+          - "auth.client_uuid"
+      # Merging Strategy
+      merging:
+        # Target Pattern file
+        "apps/{service}/values.yaml":
+          # Custom key mappings for livecomments
+          # Maps configMap keys to different secret keys
+          keyMappings:
+            "configMap.application.properties": "secrets.application.conf"
+          # Define the merge order for secrets
+          # Files are processed in order, later files override earlier ones
+          mergeOrder:
+            - "apps/{service}/legacy-values.yaml"
+            - "apps/{service}/helm-values.yaml"
+    serviceType: service
+    serviceTypeCapitalized: Service
+  livequestions:
+    enabled: false
+    alias: lq
+    gitRepo: https://github.com/viafoura/livequestions-service
+    name: livequestions
+    parameterStore: livequestions
+    serviceType: service
+    serviceTypeCapitalized: Service
+  livereviews:
+    enabled: false
+    alias: lr
+    gitRepo: https://github.com/viafoura/livereviews-service
+    name: livereviews
+    parameterStore: livereviews
+    serviceType: service
+    serviceTypeCapitalized: Service
+  livestories:
+    enabled: false
+    alias: ls
+    gitRepo: https://github.com/viafoura/livestories-service
+    name: livestories
+    parameterStore: livestories
+    serviceType: service
+    serviceTypeCapitalized: Service
+  moderation-orchestrator:
+    enabled: false
+    alias: modorc
+    gitRepo: https://github.com/viafoura/moderation-orchestrator-service
+    name: moderation-orchestrator
+    parameterStore: moderation-orchestrator
+    serviceType: service
+    serviceTypeCapitalized: Service
+  polls:
+    enabled: false
+    alias: poll
+    gitRepo: https://github.com/viafoura/polls-service
+    name: polls
+    parameterStore: polls
+    serviceType: service
+    serviceTypeCapitalized: Service
+  realtime-event-feed:
+    enabled: false
+    alias: ref
+    gitRepo: https://github.com/viafoura/realtime-event-feed-service
+    name: realtime-event-feed
+    parameterStore: realtime-event-feed
+    serviceType: service
+    serviceTypeCapitalized: Service
+  spam-moderation:
+    enabled: false
+    alias: spam-mod
+    gitRepo: https://github.com/viafoura/spam-moderation
+    name: spam-moderation
+    parameterStore: spam-moderation
+    serviceType: service
+    serviceTypeCapitalized: Service
+  tyrion:
+    enabled: false
+    alias: tyr
+    gitRepo: https://github.com/viafoura/tyrion-service
+    name: tyrion
+    parameterStore: tyrion
+    serviceType: service
+    serviceTypeCapitalized: Service
+  ucs-moderation:
+    enabled: false
+    alias: usc-mod
+    gitRepo: https://github.com/viafoura/ucs-moderation
+    name: ucs-moderation
+    parameterStore: ucs-moderation
+    serviceType: service
+    serviceTypeCapitalized: Service
+  user-import:
+    enabled: false
+    alias: uimp
+    gitRepo: https://github.com/viafoura/user-import-service
+    name: user-import
+    parameterStore: user-import
+    serviceType: service
+    serviceTypeCapitalized: Service
+  user-interaction:
+    enabled: false
+    alias: user-int
+    gitRepo: https://github.com/viafoura/user-interaction-service
+    name: user-interaction
+    parameterStore: user-interaction
+    serviceType: service
+    serviceTypeCapitalized: Service
+  user-notification:
+    enabled: false
+    alias: usn
+    gitRepo: https://github.com/viafoura/user-notification-service
+    name: user-notification
+    parameterStore: user-notification
+    serviceType: service
+    serviceTypeCapitalized: Service
+  webhooks:
+    enabled: false
+    alias: wh
+    gitRepo: https://github.com/viafoura/webhooks-service
+    name: webhooks
+    parameterStore: webhooks
+    serviceType: service
+    serviceTypeCapitalized: Service
+  webhooks-client:
+    enabled: false
+    alias: whcli
+    gitRepo: https://github.com/viafoura/webhooks-service
+    name: webhooks-client
+    parameterStore: webhooks-client
+    serviceType: service
+    serviceTypeCapitalized: Service

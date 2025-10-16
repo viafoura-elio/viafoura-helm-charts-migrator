@@ -1,0 +1,50 @@
+{{- if and .Values.autoscaling.enabled .Values.autoscaling.externalMetrics.enabled }}
+---
+# ConfigMap for Prometheus Adapter to expose connection metrics for HPA
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "base-chart.fullname" . }}-adapter-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics-adapter
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace }}
+data:
+  config.yaml: |
+    rules:
+    # External metrics for connection count
+    - seriesQuery: 'realtimeeventfeed_connections_current{namespace="{{ .Release.Namespace }}",pod=~"{{ include "base-chart.fullname" . }}-.*"}'
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          pod: {resource: "pod"}
+      name:
+        matches: "^realtimeeventfeed_connections_current"
+        as: "realtimeeventfeed_connections_current"
+      metricsQuery: 'avg(realtimeeventfeed_connections_current{namespace="{{ .Release.Namespace }}",pod=~"{{ include "base-chart.fullname" . }}-.*"})'
+
+    # Additional connection metrics if available
+    - seriesQuery: 'http_connections_active{namespace="{{ .Release.Namespace }}",pod=~"{{ include "base-chart.fullname" . }}-.*"}'
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          pod: {resource: "pod"}
+      name:
+        matches: "^http_connections_active"
+        as: "http_connections_active"
+      metricsQuery: 'avg(http_connections_active{namespace="{{ .Release.Namespace }}",pod=~"{{ include "base-chart.fullname" . }}-.*"})'
+
+    # JVM thread count as an alternative metric
+    - seriesQuery: 'jvm_threads_current{namespace="{{ .Release.Namespace }}",pod=~"{{ include "base-chart.fullname" . }}-.*"}'
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          pod: {resource: "pod"}
+      name:
+        matches: "^jvm_threads_current"
+        as: "jvm_threads_current"
+      metricsQuery: 'avg(jvm_threads_current{namespace="{{ .Release.Namespace }}",pod=~"{{ include "base-chart.fullname" . }}-.*"})'
+{{- end }}

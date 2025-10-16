@@ -1,0 +1,5 @@
+# Stg01 Cluster Configuration
+# Staging Account - Staging Cluster 01
+#
+# This file contains cluster-wide defaults for stg01
+# Values defined here are inherited by all namespaces in this cluster

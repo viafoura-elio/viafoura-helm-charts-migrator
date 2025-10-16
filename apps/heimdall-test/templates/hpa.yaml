@@ -1,0 +1,57 @@
+{{- if .Values.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "base-chart.hpaName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base-chart.labels" . | nindent 4 }}
+  {{- if .Values.defaultAnnotations }}
+  annotations:
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  scaleTargetRef:
+    apiVersion: {{ if .Values.rollout.enabled }}argoproj.io/v1alpha1{{ else }}apps/v1{{ end }}
+    kind: {{ if .Values.rollout.enabled }}Rollout{{ else }}Deployment{{ end }}
+    name: {{ if .Values.rollout.enabled }}{{ include "base-chart.rolloutName" . }}{{ else }}{{ include "base-chart.fullname" . }}{{ end }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.externalMetrics.enabled }}
+    - type: External
+      external:
+        metric:
+          name: {{ .Values.autoscaling.externalMetrics.connectionMetricName | default "base_connections_current" }}
+          selector:
+            matchLabels:
+              namespace: {{ .Release.Namespace }}
+              pod: {{ include "base-chart.fullname" . }}
+        target:
+          type: AverageValue
+          averageValue: {{ .Values.autoscaling.target.maxConnections | default "1000" }}
+    {{- end }}
+  {{- if .Values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml .Values.autoscaling.behavior | nindent 4 }}
+  {{- end }}
+{{- end }}

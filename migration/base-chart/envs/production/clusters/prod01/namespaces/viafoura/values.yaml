@@ -1,0 +1,8 @@
+# Viafoura Namespace Configuration
+# Namespace viafoura in Prod01 Cluster
+#
+# This file contains namespace-specific values for viafoura
+# Values defined here override cluster and account-level defaults
+
+image:
+  tag: "v0.0.1"

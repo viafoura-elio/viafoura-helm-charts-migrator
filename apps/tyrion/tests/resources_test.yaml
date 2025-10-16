@@ -1,0 +1,218 @@
+suite: Resources and Environment Configuration Tests
+templates:
+  - rollout.yaml
+  - configmapsEnVars.yaml
+tests:
+  - it: should configure resource requests and limits
+    template: rollout.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 256Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+
+  - it: should configure custom resource requests and limits
+    template: rollout.yaml
+    set:
+      resources:
+        requests:
+          cpu: 200m
+          memory: 1Gi
+        limits:
+          cpu: "2"
+          memory: 2Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 200m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 1Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: "2"
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 2Gi
+
+  - it: should configure liveness probe with correct settings
+    template: rollout.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /healthy
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: 8080
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
+          value: 40
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.periodSeconds
+          value: 30
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 5
+
+  - it: should configure readiness probe with correct settings
+    template: rollout.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /healthy
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: 8080
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 60
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.periodSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.failureThreshold
+          value: 5
+
+  - it: should configure startup probe with correct settings
+    template: rollout.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /healthy
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: 8080
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.initialDelaySeconds
+          value: 15
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.periodSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.failureThreshold
+          value: 30
+
+  - it: should configure node selector for architecture
+    template: rollout.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector["kubernetes.io/arch"]
+          value: amd64
+
+  - it: should configure custom node selector
+    template: rollout.yaml
+    set:
+      nodeSelector:
+        dedicated: tyrion
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.dedicated
+          value: tyrion
+
+  - it: should configure tolerations when specified
+    template: rollout.yaml
+    set:
+      tolerations:
+        - effect: NoSchedule
+          key: dedicated
+          value: tyrion
+    asserts:
+      - contains:
+          path: spec.template.spec.tolerations
+          content:
+            effect: NoSchedule
+            key: dedicated
+            value: tyrion
+
+  - it: should configure pod anti-affinity when enabled
+    template: rollout.yaml
+    set:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: "kubernetes.io/hostname"
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: tyrion
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.affinity.podAntiAffinity
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: "kubernetes.io/hostname"
+
+  - it: should render configMapsEnvVars when configured
+    template: configmapsEnVars.yaml
+    set:
+      fullnameOverride: ""
+      nameOverride: ""
+      configMapEnvVars:
+        LOG_LEVEL: INFO
+        DEBUG_MODE: "false"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-tyrion-configMapEnvVars
+      - equal:
+          path: data.LOG_LEVEL
+          value: INFO
+      - equal:
+          path: data.DEBUG_MODE
+          value: "false"
+
+  - it: should configure envFrom in rollout when configMapsEnvVars exist
+    template: rollout.yaml
+    set:
+      fullnameOverride: ""
+      nameOverride: ""
+      configMapEnvVars:
+        LOG_LEVEL: INFO
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            configMapRef:
+              name: RELEASE-NAME-tyrion-configMapEnvVars
+
+  - it: should configure image pull policy
+    template: rollout.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+
+  - it: should configure custom image pull policy
+    template: rollout.yaml
+    set:
+      image.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  - it: should configure custom probe paths
+    template: rollout.yaml
+    set:
+      livenessProbe.httpGet.path: /health/live
+      readinessProbe.httpGet.path: /health/ready
+      startupProbe.httpGet.path: /health/startup
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /health/live
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /health/ready
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /health/startup

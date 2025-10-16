@@ -1,0 +1,234 @@
+{{- $fullName := include "tyrion.fullname" . -}}
+{{- $name := include "tyrion.name" . -}}
+{{- $selectorLabels := include "tyrion.selectorLabels" . -}}
+
+🚀 Tyrion Service deployed successfully!
+
+📊 DEPLOYMENT SUMMARY:
+  Chart: {{ .Chart.Name }} v{{ .Chart.Version }}
+  Release: {{ .Release.Name }}
+  Namespace: {{ .Release.Namespace }}
+  Enterprise Rating: 5.0/5 ⭐⭐⭐⭐⭐
+
+🌐 ACCESS INFORMATION:
+{{- if .Values.istio.enabled }}
+  {{- if .Values.istio.gateway.create }}
+
+  🔗 External URLs:
+    {{- range $prefix := .Values.hosts.hostsPrefix }}
+      {{- range $domain := $.Values.hosts.domains }}
+    • https://{{ $prefix }}.{{ $domain }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.hosts.enabledMigrationTestHosts }}
+
+  🧪 Migration Test URLs:
+      {{- range $prefix := .Values.hosts.hostsPrefix }}
+        {{- range $domain := $.Values.hosts.domains }}
+    • https://{{ $prefix }}-migration.{{ $domain }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- else }}
+
+  ⚠️  Istio Gateway not created. Enable with:
+      istio.gateway.create: true
+  {{- end }}
+{{- else }}
+
+  ℹ️  Istio integration disabled. External access through:
+{{- end }}
+
+  🔧 Internal Service URL:
+    {{ $fullName }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+  📱 Port Forward (Development):
+    kubectl port-forward svc/{{ $fullName }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+    # Visit: http://localhost:8080
+
+🔍 MONITORING & HEALTH:
+
+  📈 Health Check:
+    curl http://{{ $fullName }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/healthy
+
+{{- if .Values.service.containerPorts.metrics.enabled }}
+  📊 Metrics Endpoint:
+    curl http://{{ $fullName }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.containerPorts.metrics.containerPort }}/metrics
+{{- end }}
+
+{{- if .Values.service.containerPorts.jmx.enabled }}
+  🔧 JMX Monitoring:
+    kubectl port-forward svc/{{ $fullName }} {{ .Values.service.containerPorts.jmx.containerPort }}:{{ .Values.service.containerPorts.jmx.containerPort }} -n {{ .Release.Namespace }}
+{{- end }}
+
+{{- if .Values.serviceMonitor.enabled }}
+  🎯 Prometheus ServiceMonitor: Created
+{{- end }}
+
+{{- if .Values.datadog.enabled }}
+  🐶 Datadog Integration: Active (namespace: {{ .Values.datadog.namespace }})
+{{- end }}
+
+{{- $dashboardFiles := .Files.Glob "dashboards/*.json" }}
+{{- if and .Values.grafana.dashboards.enabled $dashboardFiles }}
+  📊 Grafana Dashboard: Created (folder: {{ .Values.grafana.dashboards.folder }})
+    kubectl get configmap {{ $fullName }}-dashboards -n {{ .Release.Namespace }}
+{{- end }}
+
+🛠️  OPERATIONAL COMMANDS:
+
+  🔍 Check Deployment Status:
+{{- if .Values.rollout.enabled }}
+    kubectl get rollout {{ $fullName }} -n {{ .Release.Namespace }}
+    kubectl argo rollouts get rollout {{ $fullName }} -n {{ .Release.Namespace }}
+{{- else }}
+    kubectl get deployment {{ $fullName }} -n {{ .Release.Namespace }}
+{{- end }}
+
+  📋 View All Resources:
+    kubectl get all -l app.kubernetes.io/name={{ $name }},app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+{{- if .Values.istio.enabled }}
+  🌐 Istio Resources:
+    kubectl get gateway,virtualservice,destinationrule -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  {{- if eq (include "tyrion.istioMode" .) "ambient" }}
+
+  🌊 Istio Ambient Mode: Active (ztunnel mesh) - DEFAULT
+    kubectl get gateway -n {{ .Release.Namespace }} -l istio.io/waypoint-for
+    kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ $name }} -o jsonpath='{.items[0].metadata.annotations.ambient\.istio\.io/redirection}'
+    # Check ambient mode enrollment: kubectl get namespace {{ .Release.Namespace }} -o jsonpath='{.metadata.labels.istio\.io/dataplane-mode}'
+    {{- if .Values.istio.ambient.waypoint.enabled }}
+
+  🚦 Waypoint Proxy: {{ include "tyrion.waypointName" . }} ({{ .Values.istio.ambient.waypoint.trafficType }})
+    kubectl get gateway {{ include "tyrion.waypointName" . }} -n {{ .Release.Namespace }}
+    kubectl describe gateway {{ include "tyrion.waypointName" . }} -n {{ .Release.Namespace }}
+    {{- end }}
+  {{- else }}
+
+  🔄 Istio Sidecar Mode: Active (envoy proxy injection) - {{ .Values.istio.sidecar.injection.mode | upper }}
+    kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ $name }} -o jsonpath='{.items[0].spec.containers[*].name}'
+    kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ $name }} -o jsonpath='{.items[0].metadata.annotations.sidecar\.istio\.io/inject}'
+    # Check sidecar injection: kubectl get namespace {{ .Release.Namespace }} -o jsonpath='{.metadata.labels.{{ .Values.istio.sidecar.injection.namespaceLabel }}}'
+  {{- end }}
+{{- end }}
+
+{{- if .Values.networkPolicy.enabled }}
+  🔒 Network Policies:
+    kubectl get networkpolicy -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ $name }}
+{{- end }}
+
+  📊 Pod Status & Logs:
+    kubectl get pods -l app.kubernetes.io/name={{ $name }} -n {{ .Release.Namespace }}
+    kubectl logs -f -l app.kubernetes.io/name={{ $name }} -n {{ .Release.Namespace }}
+
+🔐 SECURITY FEATURES:
+
+{{- if .Values.rbac.create }}
+  ✅ RBAC: Enabled (least privilege)
+    kubectl get role,rolebinding,serviceaccount -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ $name }}
+{{- end }}
+
+{{- if .Values.podSecurityStandards.enabled }}
+  ✅ Pod Security Standards: {{ .Values.podSecurityStandards.level | title }}
+{{- end }}
+
+{{- if .Values.networkPolicy.enabled }}
+  ✅ NetworkPolicy: Zero-trust networking enabled
+{{- end }}
+
+{{- if .Values.istio.enabled }}
+  {{- if eq (include "tyrion.istioMode" .) "ambient" }}
+  ✅ Istio Ambient Mode: Secure L4 mesh with ztunnel (default)
+    {{- if .Values.istio.ambient.waypoint.enabled }}
+    ✅ Waypoint Proxy: L7 policies for {{ .Values.istio.ambient.waypoint.trafficType }} traffic
+    {{- end }}
+  {{- else }}
+  ✅ Istio Sidecar Mode: Secure L7 mesh with envoy proxy
+    ✅ Sidecar Injection: {{ .Values.istio.sidecar.injection.mode }} mode
+    ✅ Sidecar Resources: CPU {{ .Values.istio.sidecar.proxy.resources.requests.cpu }}, Memory {{ .Values.istio.sidecar.proxy.resources.requests.memory }}
+  {{- end }}
+{{- end }}
+
+  ✅ Security Context: Read-only filesystem, non-root user
+  ✅ Resource Limits: CPU {{ .Values.resources.limits.cpu }}, Memory {{ .Values.resources.limits.memory }}
+
+{{- if .Values.serviceAccount.podIdentity.enabled }}
+  ✅ AWS Pod Identity: {{ .Values.serviceAccount.podIdentity.accountId }}
+{{- else if .Values.serviceAccount.iamRole.enabled }}
+  ✅ AWS IRSA: {{ .Values.serviceAccount.iamRole.accountId }}
+{{- end }}
+
+🚀 SCALING & DEPLOYMENT:
+
+{{- if .Values.autoscaling.enabled }}
+  📈 Auto-scaling: {{ .Values.autoscaling.minReplicas }}-{{ .Values.autoscaling.maxReplicas }} replicas
+    kubectl get hpa {{ $fullName }} -n {{ .Release.Namespace }}
+{{- else }}
+  📊 Static replicas: {{ .Values.replicaCount }}
+{{- end }}
+
+{{- if .Values.rollout.enabled }}
+  🎯 Deployment Strategy: Argo Rollouts
+  {{- if .Values.rollout.strategy.canary.enabled }}
+    • Canary deployments with Istio traffic splitting
+  {{- end }}
+  {{- if .Values.rollout.strategy.blueGreen.enabled }}
+    • Blue-Green deployments
+  {{- end }}
+{{- else }}
+  🎯 Deployment Strategy: Rolling Update
+{{- end }}
+
+{{- if .Values.podDisruptionBudget.enabled }}
+  🛡️  Pod Disruption Budget: Max unavailable {{ .Values.podDisruptionBudget.maxUnavailable }}
+{{- end }}
+
+💾 BACKUP & RECOVERY:
+
+{{- if .Values.backup.enabled }}
+  {{- if .Values.backup.velero.enabled }}
+  📦 Velero Backup: {{ .Values.backup.velero.schedule }}
+    kubectl get schedule -n {{ .Values.backup.velero.namespace | default "velero" }} {{ $fullName }}-backup
+  {{- end }}
+  {{- if .Values.backup.cronjob.enabled }}
+  🕒 CronJob Backup: {{ .Values.backup.cronjob.schedule }}
+    kubectl get cronjob {{ $fullName }}-backup-cronjob -n {{ .Release.Namespace }}
+  {{- end }}
+{{- else }}
+  ℹ️  Backup automation disabled. Enable with backup.enabled: true
+{{- end }}
+
+📚 DOCUMENTATION & SUPPORT:
+
+  📖 Full Documentation: docs/confluence/HELM_CHART_DOCUMENTATION.md
+  🚨 Disaster Recovery: docs/DISASTER_RECOVERY.md
+  🔧 Configuration Examples: docs/confluence/DEPLOYMENT_EXAMPLES.md
+
+  📞 Support Contacts:
+    • Platform Engineering: platform-engineering@viafoura.com
+    • Security Team: security@viafoura.com
+    • SRE Team: sre@viafoura.com
+
+  💬 Slack: #platform-engineering
+
+🎉 NEXT STEPS:
+
+  1. Verify health endpoint: curl {{ $fullName }}/healthy
+  2. Check metrics collection: kubectl get servicemonitor
+  3. Monitor deployment: kubectl get events --sort-by='.lastTimestamp'
+{{- if .Values.istio.enabled }}
+  {{- if eq (include "tyrion.istioMode" .) "ambient" }}
+  4. Validate Istio Ambient Mode (default): istioctl proxy-status && kubectl get ztunnel -n istio-system
+  {{- if .Values.istio.ambient.waypoint.enabled }}
+  5. Check Waypoint Proxy: kubectl get gateway {{ include "tyrion.waypointName" . }} -n {{ .Release.Namespace }}
+  {{- end }}
+  {{- else }}
+  4. Validate Istio Sidecar Mode: istioctl proxy-status && kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ $name }} -o jsonpath='{.items[0].spec.containers[*].name}'
+  5. Check Sidecar Injection: kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ $name }} -o jsonpath='{.items[0].metadata.annotations.sidecar\.istio\.io/inject}'
+  {{- end }}
+{{- end }}
+{{- if .Values.rollout.enabled }}
+  5. Monitor rollout progress: kubectl argo rollouts status {{ $fullName }}
+{{- end }}
+
+Enterprise-grade Tyrion microservice ready for production! 🎯

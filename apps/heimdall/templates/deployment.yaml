@@ -1,0 +1,25 @@
+{{- if not .Values.rollout.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "heimdall.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heimdall.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "heimdall.selectorLabels" . | nindent 6 }}
+  template:
+    {{- include "heimdall.podTemplate" . | nindent 4 }}
+{{- end }}

@@ -1,0 +1,25 @@
+ConfigMap:
+  root.properties:
+    3f4beddd-2061-49b0-ae80-6f1f2ed65b37: 5e137203-053f-445e-8a6e-4defcf6e4618
+    936da557-6daa-4444-92cc-161fc290c603: 4453aab9-5c5d-45c7-b852-fe229f0c51fc
+    c23203d0-1b8e-4208-92dc-85dc79e6226b: 4adfcb2f-f541-453e-89a3-1ec92a2d8743
+    com.viafoura.heimdall.auth.mfa.url: http://auth2.vf-dev2.org/login
+    com.viafoura.heimdall.cookie.access.domain: vf-dev2.org
+    com.viafoura.heimdall.cookie.refresh.domain: auth.vf-dev2.org
+    com.viafoura.heimdall.jwt.secret_1: this is my secret
+    com.viafoura.heimdall.jwt.secret_2: this is my other secret
+    com.viafoura.heimdall.provider.loginradius.secret: 4adfcb2f-f541-453e-89a3-1ec92a2d8743
+    com.viafoura.heimdall.thirdparty.apikey.loginradius: c23203d0-1b8e-4208-92dc-85dc79e6226b
+    com.viafoura.heimdall.thirdparty.callbackparameter.loginradius: '&same_window=1&callback=https%3A%2F%2Fauth.vf-dev2.info%2Fthirdpartycallback%3Fcode%3D'
+    com.viafoura.heimdall.thirdparty.parameter.loginradius: ?apikey=c23203d0-1b8e-4208-92dc-85dc79e6226b
+    com.viafoura.heimdall.thirdparty.url.loginradius: https://viafoura-dev.hub.loginradius.com/RequestHandlor.aspx
+    com.viafoura.heimdall.url.resetpassword: //admin.vf-dev2.org/admin/0/0/login/forgot_password
+    com.viafoura.heimdall.v2api.host: https://api.vf-dev2.org
+    com.viafoura.heimdall.viafoura_core.base_url: https://api.vf-dev2.org/v2
+  vfmetrics.properties:
+    datadog.tags: environment:vf-dev2
+Image:
+  Tag: v10.18.0
+Ingress:
+  infoHost: auth.vf-dev2.info
+  orgHost: auth.vf-dev2.org

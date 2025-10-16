@@ -1,0 +1,181 @@
+suite: Istio Service Mesh Configuration Tests
+templates:
+  - istio-gateway.yaml
+  - istio-virtualservice.yaml
+  - istio-destinationrule.yaml
+  - certificate.yaml
+tests:
+  - it: should render private gateway when enabled
+    template: istio-gateway.yaml
+    documentIndex: 0
+    set:
+      istio.gateway.private.enabled: true
+      hosts.privateDomains:
+        - "private.example.com"
+    asserts:
+      - isKind:
+          of: Gateway
+      - isAPIVersion:
+          of: networking.istio.io/v1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-heimdall-private-gateway
+      - equal:
+          path: spec.selector.app
+          value: istio-private-gateway
+
+  - it: should render public gateway with default configuration
+    template: istio-gateway.yaml
+    documentIndex: 1
+    set:
+      istio.gateway.private.enabled: true
+      hosts.privateDomains:
+        - "private.example.com"
+    asserts:
+      - isKind:
+          of: Gateway
+      - isAPIVersion:
+          of: networking.istio.io/v1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-heimdall-public-gateway
+      - equal:
+          path: spec.selector.istio
+          value: ingressgateway
+
+  - it: should configure gateway servers for HTTP and HTTPS
+    template: istio-gateway.yaml
+    documentIndex: 1
+    set:
+      istio.gateway.private.enabled: true
+      hosts.privateDomains:
+        - "private.example.com"
+    asserts:
+      - lengthEqual:
+          path: spec.servers
+          count: 2
+      - contains:
+          path: spec.servers
+          content:
+            port:
+              number: 80
+              name: http
+              protocol: HTTP
+            tls:
+              httpsRedirect: true
+            hosts:
+              - heimdall.vf-dev2.org
+              - private.example.com
+      - contains:
+          path: spec.servers
+          content:
+            port:
+              number: 443
+              name: https
+              protocol: HTTP
+            tls:
+              mode: AUTO_PASSTHROUGH
+            hosts:
+              - heimdall.vf-dev2.org
+              - private.example.com
+
+  - it: should include public domains in gateway hosts
+    template: istio-gateway.yaml
+    documentIndex: 1
+    set:
+      istio.gateway.private.enabled: true
+      hosts.privateDomains:
+        - "private.example.com"
+    asserts:
+      - contains:
+          path: spec.servers[0].hosts
+          content: "heimdall.vf-dev2.org"
+
+  - it: should render virtual service with correct hosts
+    template: istio-virtualservice.yaml
+    asserts:
+      - contains:
+          path: spec.hosts
+          content: "heimdall.vf-dev2.org"
+
+  - it: should configure virtual service with canary routes
+    template: istio-virtualservice.yaml
+    asserts:
+      - equal:
+          path: spec.http[0].name
+          value: primary
+      - equal:
+          path: spec.http[0].route[0].weight
+          value: 100
+      - equal:
+          path: spec.http[0].route[1].weight
+          value: 0
+      - equal:
+          path: spec.http[1].name
+          value: canary
+
+  - it: should configure canary route with header matching
+    template: istio-virtualservice.yaml
+    asserts:
+      - equal:
+          path: spec.http[1].match[1].headers.canary.exact
+          value: "true"
+      - equal:
+          path: spec.http[1].route[0].weight
+          value: 100
+
+  - it: should not render certificate when cert-manager is disabled
+    template: certificate.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render certificate when cert-manager is enabled
+    template: certificate.yaml
+    set:
+      istio.enabled: true
+      istio.certManager.enabled: true
+    asserts:
+      - isKind:
+          of: Certificate
+      - isAPIVersion:
+          of: cert-manager.io/v1
+      - equal:
+          path: spec.issuerRef.name
+          value: letsencrypt-prod
+
+  - it: should configure destination rule with traffic policy when enabled
+    template: istio-destinationrule.yaml
+    set:
+      istio.destinationRule.trafficPolicy.enabled: true
+    asserts:
+      - isNotEmpty:
+          path: spec.trafficPolicy
+      - equal:
+          path: spec.trafficPolicy.connectionPool.tcp.maxConnections
+          value: 100
+      - equal:
+          path: spec.trafficPolicy.loadBalancer.simple
+          value: LEAST_CONN
+
+  - it: should configure outlier detection in traffic policy
+    template: istio-destinationrule.yaml
+    set:
+      istio.destinationRule.trafficPolicy.enabled: true
+    asserts:
+      - equal:
+          path: spec.trafficPolicy.outlierDetection.consecutiveGatewayErrors
+          value: 5
+      - equal:
+          path: spec.trafficPolicy.outlierDetection.consecutive5xxErrors
+          value: 5
+      - equal:
+          path: spec.trafficPolicy.outlierDetection.maxEjectionPercent
+          value: 50
+
+  - it: should reference correct gateway in virtual service
+    template: istio-virtualservice.yaml
+    asserts:
+      - contains:
+          path: spec.gateways
+          content: "NAMESPACE/RELEASE-NAME-heimdall-public-gateway"

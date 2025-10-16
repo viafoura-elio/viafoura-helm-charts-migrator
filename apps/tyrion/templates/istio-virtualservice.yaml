@@ -1,0 +1,100 @@
+{{- if and (not .Values.rollout.strategy.blueGreen.enabled) .Values.rollout.strategy.canary.trafficRouting .Values.rollout.strategy.canary.enabled }}
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ include "tyrion.virtualServiceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tyrion.labels" . | nindent 4 }}
+  {{- if or .Values.defaultAnnotations .Values.istio.globals.annotations }}
+  annotations:
+    {{- with .Values.istio.globals.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.defaultAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  hosts:
+    {{- if and .Values.hosts.public.enabled (gt (len .Values.hosts.public.domains) 0) }}
+    {{- toYaml .Values.hosts.public.domains | nindent 4 }}
+    {{- end }}
+    {{- if and .Values.hosts.private.enabled (gt (len .Values.hosts.private.domains) 0) }}
+    {{- toYaml .Values.hosts.private.domains | nindent 4 }}
+    {{- end }}
+    {{- if not (or (and .Values.hosts.public.enabled (gt (len .Values.hosts.public.domains) 0)) (and .Values.hosts.private.enabled (gt (len .Values.hosts.private.domains) 0))) }}
+    - "*"
+    {{- end }}
+  gateways:
+    {{- if and .Values.hosts.public.enabled (gt (len .Values.hosts.public.domains) 0) }}
+    - {{ .Release.Namespace }}/{{ include "tyrion.publicGatewayName" . }}
+    {{- end }}
+    {{- if and .Values.hosts.private.enabled (gt (len .Values.hosts.private.domains) 0) }}
+    - {{ .Release.Namespace }}/{{ include "tyrion.privateGatewayName" . }}
+    {{- end }}
+  http:
+    - name: primary
+      match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: {{ include "tyrion.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+            subset: stable
+            port:
+              number: {{ .Values.service.port | default 80 }}
+          weight: 100
+        - destination:
+            host: {{ include "tyrion.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+            subset: canary
+            port:
+              number: {{ .Values.service.port | default 80 }}
+          weight: 0
+    {{- if .Values.istio.faultInjection.enabled }}
+      fault:
+        delay:
+          percentage:
+            value: {{ .Values.istio.faultInjection.configs.delay.percentage }}
+          fixedDelay: {{ .Values.istio.faultInjection.configs.delay.fixedDelay }}
+        abort:
+          percentage:
+            value: {{ .Values.istio.faultInjection.configs.abort.percentage }}
+          httpStatus: {{ .Values.istio.faultInjection.configs.abort.httpStatus }}
+    {{- end }}
+    {{- if .Values.istio.virtualService.additionalRouteConfig }}
+    {{- toYaml .Values.istio.virtualService.additionalRouteConfig | nindent 4 }}
+    {{- end }}
+    - name: canary
+      match:
+        - uri:
+            prefix: /
+        - headers:
+            canary:
+              exact: "true"
+      route:
+        - destination:
+            host: {{ include "tyrion.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+            subset: canary
+            port:
+              number: {{ .Values.service.port | default 80 }}
+          weight: 100
+    {{- if .Values.istio.faultInjection.enabled }}
+      fault:
+        delay:
+          percentage:
+            value: {{ .Values.istio.faultInjection.configs.delay.percentage }}
+          fixedDelay: {{ .Values.istio.faultInjection.configs.delay.fixedDelay }}
+        abort:
+          percentage:
+            value: {{ .Values.istio.faultInjection.configs.abort.percentage }}
+          httpStatus: {{ .Values.istio.faultInjection.configs.abort.httpStatus }}
+    {{- end }}
+    {{- if .Values.istio.virtualService.additionalRouteConfig }}
+    {{- toYaml .Values.istio.virtualService.additionalRouteConfig | nindent 4 }}
+    {{- end }}
+  {{- if .Values.istio.virtualService.additionalHttp }}
+  {{- toYaml .Values.istio.virtualService.additionalHttp | nindent 2 }}
+  {{- end }}
+{{- end }}

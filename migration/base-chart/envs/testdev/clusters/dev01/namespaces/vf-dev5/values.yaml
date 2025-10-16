@@ -1,0 +1,8 @@
+# VF-Dev5 Namespace Configuration
+# Namespace vf-dev5 in Dev01 Cluster
+#
+# This file contains namespace-specific values for vf-dev5
+# Values defined here override cluster and account-level defaults
+
+image:
+  tag: "v0.0.1"

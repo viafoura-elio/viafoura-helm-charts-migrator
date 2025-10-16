@@ -1,0 +1,6 @@
+# TestDev AWS Account Configuration
+# Account ID: 123456789012
+# Purpose: Development and Testing Environment
+#
+# This file contains account-wide defaults for testdev
+# Values defined here are inherited by all clusters in this account
